@@ -69,9 +69,37 @@ export async function verifyHealth(accessKey: string): Promise<{ ok: true }>{
 }
 
 export async function verifySearch(accessKey: string, input: VerifySearchInput): Promise<VerifySearchResult> {
-  return http<VerifySearchResult>(`/verify/search`, {
+  const raw = await http<any>(`/verify/search`, {
     method: 'POST',
     accessKey,
     body: JSON.stringify(input)
   });
+
+  // ✅ Handle 200 responses that are still failures
+  if (raw?.ok === false) {
+    throw new Error(raw?.message || raw?.error || 'Search failed');
+  }
+
+  // ✅ Normalize server shape -> UI shape
+  const patron = raw?.patron || null;
+  const badge = raw?.badge || null;
+  const applications = Array.isArray(raw?.applications) ? raw.applications : [];
+
+  return {
+    patron: {
+      id: patron?.id,
+      first_name: patron?.first_name ?? null,
+      last_name: patron?.last_name ?? null,
+      badge_last4: badge?.badge_last4 ?? null
+    },
+    applications: applications.map((a: any) => ({
+      id: a.id,
+      submitted_at: a.submitted_at ?? null,
+      status: a.status,
+      business_name: a.business?.name ?? '—',
+      store_number: a.business?.store_number ?? null,
+      position_title: a.position?.title ?? null
+    }))
+  };
 }
+
