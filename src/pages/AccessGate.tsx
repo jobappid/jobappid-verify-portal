@@ -1,0 +1,67 @@
+import { useMemo, useState } from 'react';
+import { Button, Card, H1, Input, Muted } from '../components/UI';
+
+export function AccessGate(props: {
+  apiBaseUrl: string;
+  accessKey: string;
+  onChangeAccessKey: (v: string) => void;
+  onContinue: () => void;
+}) {
+  const [msg, setMsg] = useState<string>('');
+
+  const apiHint = useMemo(() => {
+    return props.apiBaseUrl;
+  }, [props.apiBaseUrl]);
+
+  async function quickPing() {
+    setMsg('Checking API connectivity...');
+    try {
+      const res = await fetch(`${props.apiBaseUrl}/verify/health`, { method: 'GET' });
+      const text = await res.text();
+      setMsg(`API responded (${res.status}): ${text.slice(0, 120)}`);
+    } catch (e: any) {
+      setMsg(`API unreachable: ${String(e?.message || e)}`);
+    }
+  }
+
+  const canContinue = props.accessKey.trim().length >= 8;
+
+  return (
+    <Card>
+      <H1>Office Access</H1>
+      <Muted>
+        Enter the <b>Office Access Key</b> issued by JobAppID. This portal is read-only. All lookups are audit logged.
+        <div style={{ marginTop: 8, opacity: 0.9 }}>
+          API: <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{apiHint}</span>
+        </div>
+      </Muted>
+
+      <div style={{ marginTop: 14 }}>
+        <label style={{ fontSize: 12, opacity: 0.8 }}>Office Access Key</label>
+        <Input
+          value={props.accessKey}
+          onChange={(e) => props.onChangeAccessKey(e.target.value)}
+          placeholder="verifier_..."
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+        />
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
+        <Button kind="ghost" onClick={quickPing}>
+          Test API
+        </Button>
+        <Button disabled={!canContinue} onClick={props.onContinue}>
+          Continue
+        </Button>
+      </div>
+
+      {msg ? <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75 }}>{msg}</div> : null}
+
+      <div style={{ marginTop: 14, fontSize: 12, opacity: 0.65, lineHeight: 1.4 }}>
+        Minimum recommended policy: require <b>Last Name + Badge Last-4 + PIN</b>.
+      </div>
+    </Card>
+  );
+}
