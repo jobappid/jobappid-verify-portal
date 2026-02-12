@@ -27,25 +27,39 @@ export type VerifySearchResult = {
   applications: VerifyApplication[];
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 function mustApiBaseUrl() {
-  const v = String(API_BASE_URL || '').trim();
+  const v = String(API_BASE_URL || "").trim();
   if (!v) {
-    throw new Error('Missing VITE_API_BASE_URL. Set it in your .env and restart.');
+    throw new Error("Missing VITE_API_BASE_URL. Set it in your .env and restart.");
   }
-  return v.replace(/\/+$/, '');
+  return v.replace(/\/+$/, "");
 }
 
-async function http<T>(path: string, opts: RequestInit & { accessKey: string }) {
+async function http<T>(
+  path: string,
+  opts: RequestInit & {
+    // For verify endpoints:
+    accessKey?: string;
+
+    // For agency endpoints:
+    jwt?: string;
+  }
+) {
   const base = mustApiBaseUrl();
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(opts.headers as any),
+  };
+
+  if (opts.accessKey) headers["X-VERIFY-KEY"] = opts.accessKey;
+  if (opts.jwt) headers["Authorization"] = `Bearer ${opts.jwt}`;
+
   const res = await fetch(base + path, {
     ...opts,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-VERIFY-KEY': opts.accessKey,
-      ...(opts.headers || {})
-    }
+    headers,
   });
 
   const text = await res.text();
@@ -57,30 +71,33 @@ async function http<T>(path: string, opts: RequestInit & { accessKey: string }) 
   }
 
   if (!res.ok) {
-    const msg = json?.error?.message || json?.message || `HTTP ${res.status}`;
+    const msg = json?.error?.message || json?.message || json?.error || `HTTP ${res.status}`;
     throw new Error(msg);
   }
 
   return json as T;
 }
 
-export async function verifyHealth(accessKey: string): Promise<{ ok: true }>{
-  return http<{ ok: true }>(`/verify/health`, { method: 'GET', accessKey });
+// =========================
+// Verify endpoints
+// =========================
+export async function verifyHealth(accessKey: string): Promise<{ ok: true }> {
+  return http<{ ok: true }>(`/verify/health`, { method: "GET", accessKey });
 }
 
 export async function verifySearch(accessKey: string, input: VerifySearchInput): Promise<VerifySearchResult> {
   const raw = await http<any>(`/verify/search`, {
-    method: 'POST',
+    method: "POST",
     accessKey,
-    body: JSON.stringify(input)
+    body: JSON.stringify(input),
   });
 
-  // ✅ Handle 200 responses that are still failures
+  // Handle 200 responses that are still failures
   if (raw?.ok === false) {
-    throw new Error(raw?.message || raw?.error || 'Search failed');
+    throw new Error(raw?.message || raw?.error || "Search failed");
   }
 
-  // ✅ Normalize server shape -> UI shape
+  // Normalize server shape -> UI shape
   const patron = raw?.patron || null;
   const badge = raw?.badge || null;
   const applications = Array.isArray(raw?.applications) ? raw.applications : [];
@@ -90,16 +107,38 @@ export async function verifySearch(accessKey: string, input: VerifySearchInput):
       id: patron?.id,
       first_name: patron?.first_name ?? null,
       last_name: patron?.last_name ?? null,
-      badge_last4: badge?.badge_last4 ?? null
+      badge_last4: badge?.badge_last4 ?? null,
     },
     applications: applications.map((a: any) => ({
       id: a.id,
       submitted_at: a.submitted_at ?? null,
       status: a.status,
-      business_name: a.business?.name ?? '—',
+      business_name: a.business?.name ?? "—",
       store_number: a.business?.store_number ?? null,
-      position_title: a.position?.title ?? null
-    }))
+      position_title: a.position?.title ?? null,
+    })),
   };
 }
 
+// =========================
+// Agency endpoints (Supabase Auth JWT)
+// =========================
+export type AgencyOnboardResult = { ok: true; message?: string };
+
+export async function agencyOnboard(jwt: string, agency_name: string): Promise<AgencyOnboardResult> {
+  return http<AgencyOnboardResult>(`/agency/onboard`, {
+    method: "POST",
+    jwt,
+    body: JSON.stringify({ agency_name }),
+  });
+}
+
+export type AgencyApproveResult = { ok: true; message?: string };
+
+export async function agencyApprove(jwt: string, approval_code: string): Promise<AgencyApproveResult> {
+  return http<AgencyApproveResult>(`/agency/approve`, {
+    method: "POST",
+    jwt,
+    body: JSON.stringify({ approval_code }),
+  });
+}
