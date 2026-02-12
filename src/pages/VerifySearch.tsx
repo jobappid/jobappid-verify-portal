@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Button, Card, H1, Input, Muted, Pill, Row, Select } from "../components/UI";
+import { Button, Card, Field, Pill, Select } from "../components/UI";
 import { verifySearch } from "../lib/api";
 import type { VerifySearchResult } from "../lib/api";
 
@@ -11,8 +11,10 @@ const REASONS = [
   "Other",
 ];
 
+const reasonOptions = REASONS.map((r) => ({ value: r, label: r }));
+
 export function VerifySearch(props: {
-  apiBaseUrl: string; // (not used by lib/api.ts, but keep prop for now)
+  apiBaseUrl: string; // not used by lib/api.ts, keep for now
   accessKey: string;
   onReset: () => void;
 }) {
@@ -24,14 +26,12 @@ export function VerifySearch(props: {
   const [reasonOther, setReasonOther] = useState("");
 
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string>("");
+  const [err, setErr] = useState("");
   const [data, setData] = useState<VerifySearchResult | null>(null);
 
   const canSearch = useMemo(() => {
     const lnOk = last.trim().length >= 2;
     const last4Ok = /^\d{4}$/.test(last4.trim());
-
-    // Mode A support (token+pin) is in SearchPage; this page is name+last4 (PIN optional)
     return lnOk && last4Ok && !loading;
   }, [last, last4, loading]);
 
@@ -48,17 +48,13 @@ export function VerifySearch(props: {
     }
 
     try {
-      // IMPORTANT:
-      // lib/api.ts verifySearch(accessKey, input) RETURNS VerifySearchResult
-      // and THROWS on any failure (including ok:false).
       const resp = await verifySearch(props.accessKey, {
         first_name: first.trim() || undefined,
-        last_name: last.trim(),          // required by your canSearch
-        badge_last4: last4.trim(),       // required by your canSearch
+        last_name: last.trim(),
+        badge_last4: last4.trim(),
         patron_code: pin.trim() || undefined,
         reason: r,
       });
-
       setData(resp);
     } catch (e: any) {
       setErr(e?.message || String(e));
@@ -72,71 +68,58 @@ export function VerifySearch(props: {
     setLast("");
     setLast4("");
     setPin("");
+    setReason(REASONS[0]);
+    setReasonOther("");
     setErr("");
     setData(null);
   }
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      <Card>
-        <Row>
-          <div style={{ flex: 1 }}>
-            <H1>Applicant lookup</H1>
-            <Muted>
-              Search by <b>Last Name</b> + <b>Badge Last-4</b>. PIN is recommended to reduce false matches.
-            </Muted>
-          </div>
-          <Button kind="ghost" onClick={props.onReset}>
+      <Card
+        title="Applicant lookup"
+        right={
+          <Button variant="ghost" onClick={props.onReset}>
             Change Access Key
           </Button>
-        </Row>
+        }
+      >
+        <div style={{ fontSize: 13, opacity: 0.8, marginTop: 6 }}>
+          Search by <b>Last Name</b> + <b>Badge Last-4</b>. PIN is recommended to reduce false matches.
+        </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 160px", gap: 10, marginTop: 14 }}>
-          <div>
-            <label style={labelStyle}>First name (optional)</label>
-            <Input value={first} onChange={(e) => setFirst(e.target.value)} placeholder="John" />
-          </div>
-          <div>
-            <label style={labelStyle}>Last name *</label>
-            <Input value={last} onChange={(e) => setLast(e.target.value)} placeholder="Smith" />
-          </div>
-          <div>
-            <label style={labelStyle}>Badge last-4 *</label>
-            <Input
-              value={last4}
-              onChange={(e) => setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
-              placeholder="1234"
-              inputMode="numeric"
-            />
-          </div>
+          <Field label="First name (optional)" value={first} onChange={setFirst} placeholder="John" />
+          <Field label="Last name *" value={last} onChange={setLast} placeholder="Smith" />
+          <Field
+            label="Badge last-4 *"
+            value={last4}
+            onChange={(v: string) => setLast4(String(v || "").replace(/\D/g, "").slice(0, 4))}
+            placeholder="1234"
+            inputMode="numeric"
+          />
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", gap: 10, marginTop: 10 }}>
-          <div>
-            <label style={labelStyle}>PIN (recommended)</label>
-            <Input
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="4321"
-              inputMode="numeric"
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Reason for lookup (required)</label>
-            <Select value={reason} onChange={(e) => setReason(e.target.value)}>
-              {REASONS.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </Select>
-          </div>
+          <Field
+            label="PIN (recommended)"
+            value={pin}
+            onChange={(v: string) => setPin(String(v || "").replace(/\D/g, "").slice(0, 6))}
+            placeholder="4321"
+            inputMode="numeric"
+          />
+
+          <Select
+            label="Reason for lookup (required)"
+            value={reason}
+            options={reasonOptions}
+            onChange={(v: string) => setReason(v)}
+          />
         </div>
 
         {reason === "Other" ? (
           <div style={{ marginTop: 10 }}>
-            <label style={labelStyle}>Describe reason *</label>
-            <Input value={reasonOther} onChange={(e) => setReasonOther(e.target.value)} placeholder="Enter reason" />
+            <Field label="Describe reason *" value={reasonOther} onChange={setReasonOther} placeholder="Enter reason" />
           </div>
         ) : null}
 
@@ -144,7 +127,8 @@ export function VerifySearch(props: {
           <Button disabled={!canSearch} onClick={runSearch}>
             {loading ? "Searching…" : "Search"}
           </Button>
-          <Button kind="ghost" onClick={clear}>
+
+          <Button variant="ghost" onClick={clear}>
             Clear
           </Button>
         </div>
@@ -152,11 +136,9 @@ export function VerifySearch(props: {
         {err ? <div style={{ marginTop: 12, fontSize: 12, color: "#ffb4b4" }}>{err}</div> : null}
       </Card>
 
-      {/* ✅ GUARDED: this will never render unless data is valid */}
       {data ? <ResultsCard data={data} /> : null}
 
-      <Card>
-        <H1>Policy notes</H1>
+      <Card title="Policy notes">
         <div style={{ fontSize: 12, opacity: 0.75, lineHeight: 1.5 }}>
           <ul style={{ margin: "8px 0 0 18px" }}>
             <li>Read-only verification. No resume download.</li>
@@ -173,16 +155,10 @@ function ResultsCard({ data }: { data: VerifySearchResult }) {
   const fullName = `${(data.patron.first_name || "").trim()} ${(data.patron.last_name || "").trim()}`.trim();
 
   return (
-    <Card>
-      <Row>
-        <div style={{ flex: 1 }}>
-          <H1>Results</H1>
-          <Muted>
-            Applicant: <b>{fullName || "—"}</b>
-          </Muted>
-        </div>
-        <Pill>Badge •••• {data.patron.badge_last4 || "—"}</Pill>
-      </Row>
+    <Card title="Results" right={<Pill text={`Badge •••• ${data.patron.badge_last4 || "—"}`} />}>
+      <div style={{ fontSize: 13, opacity: 0.8 }}>
+        Applicant: <b>{fullName || "—"}</b>
+      </div>
 
       <div style={{ marginTop: 12, overflowX: "auto" }}>
         <table style={tableStyle}>
@@ -227,21 +203,13 @@ function ResultsCard({ data }: { data: VerifySearchResult }) {
 function formatDate(iso: string | null) {
   if (!iso) return "—";
   try {
-    const d = new Date(iso);
-    return d.toLocaleString();
+    return new Date(iso).toLocaleString();
   } catch {
     return iso;
   }
 }
 
-const labelStyle: any = { fontSize: 12, opacity: 0.8 };
-
-const tableStyle: any = {
-  width: "100%",
-  borderCollapse: "collapse",
-  fontSize: 13,
-};
-
+const tableStyle: any = { width: "100%", borderCollapse: "collapse", fontSize: 13 };
 const thStyle: any = {
   textAlign: "left",
   padding: "10px 8px",
@@ -249,8 +217,4 @@ const thStyle: any = {
   opacity: 0.8,
   fontSize: 12,
 };
-
-const tdStyle: any = {
-  padding: "10px 8px",
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
-};
+const tdStyle: any = { padding: "10px 8px", borderBottom: "1px solid rgba(255,255,255,0.08)" };

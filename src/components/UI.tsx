@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 export function Card(props: { title?: string; children: React.ReactNode; right?: React.ReactNode }) {
   return (
@@ -18,10 +18,18 @@ export function Field(props: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+
   placeholder?: string;
   type?: string;
   maxLength?: number;
   autoComplete?: string;
+
+  // ✅ NEW: allow numeric keyboard / mobile hints
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+
+  // ✅ optional niceties (safe + common)
+  name?: string;
+  disabled?: boolean;
 }) {
   return (
     <label style={styles.label}>
@@ -31,9 +39,12 @@ export function Field(props: {
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
         placeholder={props.placeholder}
-        type={props.type || 'text'}
+        type={props.type || "text"}
         maxLength={props.maxLength}
         autoComplete={props.autoComplete}
+        inputMode={props.inputMode}
+        name={props.name}
+        disabled={props.disabled}
       />
     </label>
   );
@@ -63,14 +74,14 @@ export function Button(props: {
   children: React.ReactNode;
   onClick?: () => void;
   disabled?: boolean;
-  variant?: 'primary' | 'ghost';
-  type?: 'button' | 'submit';
+  variant?: "primary" | "ghost";
+  type?: "button" | "submit";
 }) {
-  const variant = props.variant || 'primary';
-  const style = variant === 'primary' ? styles.buttonPrimary : styles.buttonGhost;
+  const variant = props.variant || "primary";
+  const style = variant === "primary" ? styles.buttonPrimary : styles.buttonGhost;
 
   return (
-    <button type={props.type || 'button'} onClick={props.onClick} disabled={props.disabled} style={style}>
+    <button type={props.type || "button"} onClick={props.onClick} disabled={props.disabled} style={style}>
       {props.children}
     </button>
   );
@@ -82,60 +93,60 @@ export function Pill(props: { text: string }) {
 
 const styles: Record<string, React.CSSProperties> = {
   card: {
-    background: '#13131a',
-    border: '1px solid rgba(255,255,255,0.10)',
+    background: "#13131a",
+    border: "1px solid rgba(255,255,255,0.10)",
     borderRadius: 18,
     padding: 18,
-    boxShadow: '0 10px 30px rgba(0,0,0,0.35)'
+    boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
   },
   cardHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "baseline",
     gap: 12,
-    marginBottom: 12
+    marginBottom: 12,
   },
   cardTitle: { fontSize: 16, fontWeight: 700 },
-  label: { display: 'block', marginTop: 12 },
+  label: { display: "block", marginTop: 12 },
   labelText: { fontSize: 12, opacity: 0.75, marginBottom: 6 },
   input: {
-    width: '100%',
-    padding: '12px 12px',
+    width: "100%",
+    padding: "12px 12px",
     borderRadius: 12,
-    border: '1px solid rgba(255,255,255,0.14)',
-    background: '#0b0b0f',
-    color: '#fff',
-    outline: 'none'
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "#0b0b0f",
+    color: "#fff",
+    outline: "none",
   },
   buttonPrimary: {
-    width: '100%',
+    width: "100%",
     marginTop: 14,
-    padding: '12px 12px',
+    padding: "12px 12px",
     borderRadius: 12,
-    border: '1px solid rgba(255,255,255,0.14)',
-    background: '#ffffff',
-    color: '#0b0b0f',
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "#ffffff",
+    color: "#0b0b0f",
     fontWeight: 800,
-    cursor: 'pointer'
+    cursor: "pointer",
   },
   buttonGhost: {
-    width: '100%',
+    width: "100%",
     marginTop: 14,
-    padding: '12px 12px',
+    padding: "12px 12px",
     borderRadius: 12,
-    border: '1px solid rgba(255,255,255,0.18)',
-    background: 'transparent',
-    color: '#fff',
+    border: "1px solid rgba(255,255,255,0.18)",
+    background: "transparent",
+    color: "#fff",
     fontWeight: 700,
-    cursor: 'pointer'
+    cursor: "pointer",
   },
   pill: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    padding: '4px 10px',
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "4px 10px",
     borderRadius: 999,
-    border: '1px solid rgba(255,255,255,0.16)',
+    border: "1px solid rgba(255,255,255,0.16)",
     fontSize: 12,
-    opacity: 0.9
-  }
+    opacity: 0.9,
+  },
 };
