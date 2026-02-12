@@ -142,3 +142,19 @@ export async function agencyApprove(jwt: string, approval_code: string): Promise
     body: JSON.stringify({ approval_code }),
   });
 }
+export async function agencyJoin(jwt: string, invite_code: string): Promise<{ ok: true }> {
+  const res = await fetch(mustApiBaseUrl() + "/agency/join", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${jwt}`,
+    },
+    body: JSON.stringify({ invite_code }),
+  });
+
+  const json = await res.json().catch(() => null);
+  if (!res.ok || json?.ok === false) {
+    throw new Error(json?.error?.message || json?.message || `HTTP ${res.status}`);
+  }
+  return json;
+}
