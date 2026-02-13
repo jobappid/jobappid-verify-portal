@@ -1,11 +1,10 @@
-// lib/api.ts
 export type VerifySearchInput = {
   first_name?: string;
   last_name?: string;
   badge_last4?: string;
   badge_token?: string;
   patron_code?: string;
-  dob?: string;
+  dob?: string; // future
   reason?: string;
 };
 
@@ -19,7 +18,12 @@ export type VerifyApplication = {
 };
 
 export type VerifySearchResult = {
-  patron: { id: string; first_name: string | null; last_name: string | null; badge_last4: string | null };
+  patron: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    badge_last4: string | null;
+  };
   applications: VerifyApplication[];
 };
 
@@ -34,19 +38,23 @@ function mustApiBaseUrl() {
 async function http<T>(
   path: string,
   opts: RequestInit & {
-    accessKey?: string;
-    jwt?: string;
+    accessKey?: string; // verify endpoints
+    agencyToken?: string; // agency dashboard endpoints
   }
 ) {
   const base = mustApiBaseUrl();
-  const headers: Record<string, string> = { "Content-Type": "application/json", ...(opts.headers as any) };
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(opts.headers as any),
+  };
 
   if (opts.accessKey) headers["X-VERIFY-KEY"] = opts.accessKey;
-  if (opts.jwt) headers["Authorization"] = `Bearer ${opts.jwt}`;
+  if (opts.agencyToken) headers["Authorization"] = `Bearer ${opts.agencyToken}`;
 
   const res = await fetch(base + path, { ...opts, headers });
-  const text = await res.text();
 
+  const text = await res.text();
   let json: any = null;
   try {
     json = text ? JSON.parse(text) : null;
@@ -58,11 +66,12 @@ async function http<T>(
     const msg = json?.error?.message || json?.message || json?.error || `HTTP ${res.status}`;
     throw new Error(msg);
   }
+
   return json as T;
 }
 
 // =========================
-// Verify endpoints
+// Verify endpoints (Agent Search)
 // =========================
 export async function verifyHealth(accessKey: string): Promise<{ ok: true }> {
   return http<{ ok: true }>(`/verify/health`, { method: "GET", accessKey });
@@ -100,56 +109,62 @@ export async function verifySearch(accessKey: string, input: VerifySearchInput):
 }
 
 // =========================
-// Agency endpoints
+// Agency auth + dashboard
 // =========================
-export type AgencyOnboardResult = { ok: true; message?: string };
-export async function agencyOnboard(jwt: string, agency_name: string, agency_password: string): Promise<AgencyOnboardResult> {
-  return http<AgencyOnboardResult>(`/agency/onboard`, {
-    method: "POST",
-    jwt,
-    body: JSON.stringify({ agency_name, agency_password }),
-  });
-}
 
-export type AgencyApproveResult = { ok: true; message?: string };
-export async function agencyApprove(jwt: string, approval_code: string): Promise<AgencyApproveResult> {
-  return http<AgencyApproveResult>(`/agency/approve`, {
-    method: "POST",
-    jwt,
-    body: JSON.stringify({ approval_code }),
-  });
-}
+export type AgencyLoginResult = {
+  ok: true;
+  agency_id: string;
+  agency_name: string;
+  agency_token: string;
+};
 
-// ✅ Owner daily sign-in (NO email)
-export async function agencyLogin(agency_name: string, agency_password: string): Promise<{ ok: true; officeName: string; accessKey: string }> {
-  return http(`/agency/login`, {
+export async function agencyLogin(agency_name: string, agency_password: string): Promise<AgencyLoginResult> {
+  return http<AgencyLoginResult>(`/agency/login`, {
     method: "POST",
     body: JSON.stringify({ agency_name, agency_password }),
   });
 }
 
-// ✅ Agent (or owner) gets access key via JWT after Supabase login
-export async function agencySession(jwt: string): Promise<{ ok: true; officeName: string; role: string; accessKey: string }> {
-  return http(`/agency/session`, { method: "POST", jwt });
-}
+export type AgentLoginResult = { ok: true; officeName: string; accessKey: string };
 
-export async function agencyInvite(jwt: string, expires_hours = 24): Promise<{ ok: true; data: { invite_code: string; expires_at: string } }> {
-  return http(`/agency/invite`, { method: "POST", jwt, body: JSON.stringify({ expires_hours }) });
-}
-
-export async function agencyJoin(jwt: string, invite_code: string): Promise<{ ok: true }> {
-  return http(`/agency/join`, { method: "POST", jwt, body: JSON.stringify({ invite_code }) });
-}
-
-// ✅ Manage agents (owner only)
-export async function agencyListAgents(jwt: string): Promise<{ ok: true; users: any[] }> {
-  return http(`/agency/agents`, { method: "GET", jwt });
-}
-
-export async function agencyRemoveAgent(jwt: string, user_id: string, delete_auth_user = false): Promise<{ ok: true; message: string }> {
-  return http(`/agency/agents/remove`, {
+export async function agentLogin(agency_name: string, username: string, password: string): Promise<AgentLoginResult> {
+  return http<AgentLoginResult>(`/agency/agent/login`, {
     method: "POST",
-    jwt,
-    body: JSON.stringify({ user_id, delete_auth_user }),
+    body: JSON.stringify({ agency_name, username, password }),
+  });
+}
+
+export type AgencyAgentsListResult = {
+  ok: true;
+  agents: { id: string; username: string; is_active: boolean; created_at: string; last_login_at?: string | null }[];
+};
+
+export async function agencyAgentsList(agencyToken: string): Promise<AgencyAgentsListResult> {
+  return http<AgencyAgentsListResult>(`/agency/agents`, { method: "GET", agencyToken });
+}
+
+export type AgencyAgentCreateResult = {
+  ok: true;
+  agent: { id: string; username: string; is_active: boolean; created_at: string };
+  password: string; // returned ONCE
+};
+
+export async function agencyAgentCreate(
+  agencyToken: string,
+  args: { username: string; password?: string; generate_password?: boolean }
+): Promise<AgencyAgentCreateResult> {
+  return http<AgencyAgentCreateResult>(`/agency/agents/create`, {
+    method: "POST",
+    agencyToken,
+    body: JSON.stringify(args),
+  });
+}
+
+export async function agencyAgentDisable(agencyToken: string, agent_id: string): Promise<{ ok: true }> {
+  return http<{ ok: true }>(`/agency/agents/disable`, {
+    method: "POST",
+    agencyToken,
+    body: JSON.stringify({ agent_id }),
   });
 }
