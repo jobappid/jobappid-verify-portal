@@ -3,15 +3,27 @@ export type VerifySession = {
   accessKey: string;
 };
 
-const KEY = 'jobappid_verify_session_v1';
+const KEY = "jobappid_verify_session_v1";
 
 export function getSession(): VerifySession | null {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
+
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed.officeName !== 'string' || typeof parsed.accessKey !== 'string') return null;
-    return { officeName: parsed.officeName, accessKey: parsed.accessKey };
+
+    if (
+      !parsed ||
+      typeof parsed.officeName !== "string" ||
+      typeof parsed.accessKey !== "string"
+    ) {
+      return null;
+    }
+
+    return {
+      officeName: parsed.officeName,
+      accessKey: parsed.accessKey,
+    };
   } catch {
     return null;
   }

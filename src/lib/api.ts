@@ -1,10 +1,11 @@
+// lib/api.ts
 export type VerifySearchInput = {
   first_name?: string;
   last_name?: string;
   badge_last4?: string;
   badge_token?: string;
   patron_code?: string;
-  dob?: string; // optional future
+  dob?: string;
   reason?: string;
 };
 
@@ -18,12 +19,7 @@ export type VerifyApplication = {
 };
 
 export type VerifySearchResult = {
-  patron: {
-    id: string;
-    first_name: string | null;
-    last_name: string | null;
-    badge_last4: string | null;
-  };
+  patron: { id: string; first_name: string | null; last_name: string | null; badge_last4: string | null };
   applications: VerifyApplication[];
 };
 
@@ -31,38 +27,26 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 function mustApiBaseUrl() {
   const v = String(API_BASE_URL || "").trim();
-  if (!v) {
-    throw new Error("Missing VITE_API_BASE_URL. Set it in your .env and restart.");
-  }
+  if (!v) throw new Error("Missing VITE_API_BASE_URL. Set it in your .env and restart.");
   return v.replace(/\/+$/, "");
 }
 
 async function http<T>(
   path: string,
   opts: RequestInit & {
-    // For verify endpoints:
     accessKey?: string;
-
-    // For agency endpoints:
     jwt?: string;
   }
 ) {
   const base = mustApiBaseUrl();
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(opts.headers as any),
-  };
+  const headers: Record<string, string> = { "Content-Type": "application/json", ...(opts.headers as any) };
 
   if (opts.accessKey) headers["X-VERIFY-KEY"] = opts.accessKey;
   if (opts.jwt) headers["Authorization"] = `Bearer ${opts.jwt}`;
 
-  const res = await fetch(base + path, {
-    ...opts,
-    headers,
-  });
-
+  const res = await fetch(base + path, { ...opts, headers });
   const text = await res.text();
+
   let json: any = null;
   try {
     json = text ? JSON.parse(text) : null;
@@ -74,7 +58,6 @@ async function http<T>(
     const msg = json?.error?.message || json?.message || json?.error || `HTTP ${res.status}`;
     throw new Error(msg);
   }
-
   return json as T;
 }
 
@@ -92,12 +75,8 @@ export async function verifySearch(accessKey: string, input: VerifySearchInput):
     body: JSON.stringify(input),
   });
 
-  // Handle 200 responses that are still failures
-  if (raw?.ok === false) {
-    throw new Error(raw?.message || raw?.error || "Search failed");
-  }
+  if (raw?.ok === false) throw new Error(raw?.message || raw?.error || "Search failed");
 
-  // Normalize server shape -> UI shape
   const patron = raw?.patron || null;
   const badge = raw?.badge || null;
   const applications = Array.isArray(raw?.applications) ? raw.applications : [];
@@ -121,20 +100,18 @@ export async function verifySearch(accessKey: string, input: VerifySearchInput):
 }
 
 // =========================
-// Agency endpoints (Supabase Auth JWT)
+// Agency endpoints
 // =========================
 export type AgencyOnboardResult = { ok: true; message?: string };
-
-export async function agencyOnboard(jwt: string, agency_name: string): Promise<AgencyOnboardResult> {
+export async function agencyOnboard(jwt: string, agency_name: string, agency_password: string): Promise<AgencyOnboardResult> {
   return http<AgencyOnboardResult>(`/agency/onboard`, {
     method: "POST",
     jwt,
-    body: JSON.stringify({ agency_name }),
+    body: JSON.stringify({ agency_name, agency_password }),
   });
 }
 
 export type AgencyApproveResult = { ok: true; message?: string };
-
 export async function agencyApprove(jwt: string, approval_code: string): Promise<AgencyApproveResult> {
   return http<AgencyApproveResult>(`/agency/approve`, {
     method: "POST",
@@ -142,19 +119,37 @@ export async function agencyApprove(jwt: string, approval_code: string): Promise
     body: JSON.stringify({ approval_code }),
   });
 }
-export async function agencyJoin(jwt: string, invite_code: string): Promise<{ ok: true }> {
-  const res = await fetch(mustApiBaseUrl() + "/agency/join", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${jwt}`,
-    },
-    body: JSON.stringify({ invite_code }),
-  });
 
-  const json = await res.json().catch(() => null);
-  if (!res.ok || json?.ok === false) {
-    throw new Error(json?.error?.message || json?.message || `HTTP ${res.status}`);
-  }
-  return json;
+// ✅ Owner daily sign-in (NO email)
+export async function agencyLogin(agency_name: string, agency_password: string): Promise<{ ok: true; officeName: string; accessKey: string }> {
+  return http(`/agency/login`, {
+    method: "POST",
+    body: JSON.stringify({ agency_name, agency_password }),
+  });
+}
+
+// ✅ Agent (or owner) gets access key via JWT after Supabase login
+export async function agencySession(jwt: string): Promise<{ ok: true; officeName: string; role: string; accessKey: string }> {
+  return http(`/agency/session`, { method: "POST", jwt });
+}
+
+export async function agencyInvite(jwt: string, expires_hours = 24): Promise<{ ok: true; data: { invite_code: string; expires_at: string } }> {
+  return http(`/agency/invite`, { method: "POST", jwt, body: JSON.stringify({ expires_hours }) });
+}
+
+export async function agencyJoin(jwt: string, invite_code: string): Promise<{ ok: true }> {
+  return http(`/agency/join`, { method: "POST", jwt, body: JSON.stringify({ invite_code }) });
+}
+
+// ✅ Manage agents (owner only)
+export async function agencyListAgents(jwt: string): Promise<{ ok: true; users: any[] }> {
+  return http(`/agency/agents`, { method: "GET", jwt });
+}
+
+export async function agencyRemoveAgent(jwt: string, user_id: string, delete_auth_user = false): Promise<{ ok: true; message: string }> {
+  return http(`/agency/agents/remove`, {
+    method: "POST",
+    jwt,
+    body: JSON.stringify({ user_id, delete_auth_user }),
+  });
 }

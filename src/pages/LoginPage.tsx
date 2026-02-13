@@ -1,41 +1,71 @@
+// pages/LoginPage.tsx
 import { useMemo, useState } from "react";
-import { verifyHealth, agencyOnboard, agencyApprove } from "../lib/api";
+import {
+  verifyHealth,
+  agencyOnboard,
+  agencyApprove,
+  agencyLogin,
+  agencySession,
+  agencyJoin,
+  agencyInvite,
+  agencyListAgents,
+  agencyRemoveAgent,
+} from "../lib/api";
 import type { VerifySession } from "../lib/session";
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 
-// Client-side Supabase Auth (for agency signup / approval)
 const supabase =
   SUPABASE_URL && SUPABASE_ANON_KEY
     ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: true } })
     : null;
 
-type Tab = "signin" | "agency" | "approve";
+type Tab = "accesskey" | "agency_login" | "agency_signup" | "approve" | "agent_login" | "join" | "manage";
 
 export function LoginPage({ onLogin }: { onLogin: (s: VerifySession) => void }) {
-  const [tab, setTab] = useState<Tab>("signin");
+  const [tab, setTab] = useState<Tab>("agency_login");
 
-  // Access-key sign-in (existing)
-  const [officeName, setOfficeName] = useState("");
-  const [accessKey, setAccessKey] = useState("");
   const [msg, setMsg] = useState<string>("");
   const [busy, setBusy] = useState(false);
 
-  // Agency signup (owner)
-  const [agencyName, setAgencyName] = useState("");
-  const [agencyEmail, setAgencyEmail] = useState("");
-  const [agencyPass, setAgencyPass] = useState("");
+  // Existing manual access-key sign-in (optional backdoor)
+  const [officeName, setOfficeName] = useState("");
+  const [accessKey, setAccessKey] = useState("");
 
-  // Approval code
+  // Agency daily sign-in (NO email)
+  const [agencyNameLogin, setAgencyNameLogin] = useState("");
+  const [agencyPassLogin, setAgencyPassLogin] = useState("");
+
+  // Agency signup (owner) + approval
+  const [agencyName, setAgencyName] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
+  const [ownerPass, setOwnerPass] = useState("");
   const [approvalCode, setApprovalCode] = useState("");
 
-  const canAgencySignup = useMemo(() => {
-    return agencyName.trim().length >= 2 && agencyEmail.trim().length >= 6 && agencyPass.length >= 6 && !busy;
-  }, [agencyName, agencyEmail, agencyPass, busy]);
+  // Agent login + join
+  const [agentEmail, setAgentEmail] = useState("");
+  const [agentPass, setAgentPass] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
 
-  async function submitSignin() {
+  // Manage agents
+  const [agents, setAgents] = useState<any[]>([]);
+  const [deleteAuthUser, setDeleteAuthUser] = useState(false);
+
+  const canAgencySignup = useMemo(() => {
+    return agencyName.trim().length >= 2 && ownerEmail.trim().length >= 6 && ownerPass.length >= 6 && !busy;
+  }, [agencyName, ownerEmail, ownerPass, busy]);
+
+  const canAgencyLogin = useMemo(() => {
+    return agencyNameLogin.trim().length >= 2 && agencyPassLogin.length >= 6 && !busy;
+  }, [agencyNameLogin, agencyPassLogin, busy]);
+
+  const canAgentLogin = useMemo(() => {
+    return agentEmail.trim().length >= 6 && agentPass.length >= 6 && !busy;
+  }, [agentEmail, agentPass, busy]);
+
+  async function submitAccessKeySignin() {
     setMsg("");
     const name = officeName.trim();
     const key = accessKey.trim();
@@ -53,28 +83,40 @@ export function LoginPage({ onLogin }: { onLogin: (s: VerifySession) => void }) 
     }
   }
 
+  // ✅ Agency daily sign-in (NO email)
+  async function submitAgencyLogin() {
+    setMsg("");
+    const name = agencyNameLogin.trim();
+    const pass = agencyPassLogin;
+
+    setBusy(true);
+    try {
+      const r = await agencyLogin(name, pass);
+      onLogin({ officeName: r.officeName, accessKey: r.accessKey });
+    } catch (e: any) {
+      setMsg(`Agency sign-in failed: ${e?.message || e}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Owner signup uses Supabase email/password ONLY for onboarding/approval
   async function submitAgencySignup() {
     setMsg("");
-
-    if (!supabase) {
-      setMsg("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in the verify portal .env.");
-      return;
-    }
+    if (!supabase) return setMsg("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in verify portal .env.");
 
     const name = agencyName.trim();
-    const email = agencyEmail.trim().toLowerCase();
-    const pass = agencyPass;
+    const email = ownerEmail.trim().toLowerCase();
+    const pass = ownerPass;
 
     if (name.length < 2) return setMsg("Enter your agency name.");
-    if (!email) return setMsg("Enter your email.");
+    if (!email) return setMsg("Enter owner email.");
     if (pass.length < 6) return setMsg("Password must be at least 6 characters.");
 
     setBusy(true);
     try {
-      // 1) Create/sign-in the owner via Supabase Auth
       const signUp = await supabase.auth.signUp({ email, password: pass });
       if (signUp.error) {
-        // If user already exists, try sign-in
         const signIn = await supabase.auth.signInWithPassword({ email, password: pass });
         if (signIn.error) throw new Error(signIn.error.message);
       }
@@ -82,12 +124,9 @@ export function LoginPage({ onLogin }: { onLogin: (s: VerifySession) => void }) 
       const session = (await supabase.auth.getSession()).data.session;
       if (!session?.access_token) throw new Error("Could not get Supabase session token.");
 
-      // 2) Call API to onboard agency (emails support approval code)
-      await agencyOnboard(session.access_token, name);
+      await agencyOnboard(session.access_token, name, pass);
 
-      setMsg(
-        "Agency submitted. Customer support will receive an approval code and provide it to you. Then use the Approval Code tab."
-      );
+      setMsg("Agency submitted. Support will provide approval code. Go to Approval Code tab.");
       setTab("approve");
     } catch (e: any) {
       setMsg(`Agency signup failed: ${e?.message || e}`);
@@ -98,25 +137,109 @@ export function LoginPage({ onLogin }: { onLogin: (s: VerifySession) => void }) 
 
   async function submitApprove() {
     setMsg("");
-
-    if (!supabase) {
-      setMsg("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in the verify portal .env.");
-      return;
-    }
+    if (!supabase) return setMsg("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in verify portal .env.");
 
     const code = approvalCode.replace(/\D/g, "").slice(0, 12).trim();
-    if (!code) return setMsg("Enter the approval code provided by support.");
+    if (!code) return setMsg("Enter approval code.");
 
     setBusy(true);
     try {
       const session = (await supabase.auth.getSession()).data.session;
-      if (!session?.access_token) throw new Error("You must be signed in as the agency owner (email + password) first.");
+      if (!session?.access_token) throw new Error("Owner must be signed in (email + password) to approve.");
 
       await agencyApprove(session.access_token, code);
 
-      setMsg("Agency approved. Next step: agents join the agency (we’ll add this next).");
+      setMsg("Agency approved. Now you can sign in using Agency Name + Agency Password.");
+      setTab("agency_login");
     } catch (e: any) {
       setMsg(`Approval failed: ${e?.message || e}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ✅ Agent daily sign-in (email/password → JWT → /agency/session → accessKey)
+  async function submitAgentLogin() {
+    setMsg("");
+    if (!supabase) return setMsg("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in verify portal .env.");
+
+    const email = agentEmail.trim().toLowerCase();
+    const pass = agentPass;
+
+    setBusy(true);
+    try {
+      const signIn = await supabase.auth.signInWithPassword({ email, password: pass });
+      if (signIn.error) throw new Error(signIn.error.message);
+
+      const session = (await supabase.auth.getSession()).data.session;
+      if (!session?.access_token) throw new Error("Could not get Supabase session token.");
+
+      const r = await agencySession(session.access_token);
+      onLogin({ officeName: r.officeName, accessKey: r.accessKey });
+    } catch (e: any) {
+      setMsg(`Agent sign-in failed: ${e?.message || e}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ✅ Agent join (must be logged in via Supabase first)
+  async function submitJoin() {
+    setMsg("");
+    if (!supabase) return setMsg("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in verify portal .env.");
+
+    const code = inviteCode.replace(/\D/g, "").slice(0, 16).trim();
+    if (!code) return setMsg("Enter invite code.");
+
+    setBusy(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      if (!session?.access_token) throw new Error("Agent must be signed in (email + password) before joining.");
+
+      await agencyJoin(session.access_token, code);
+
+      setMsg("Joined agency. You can now use Agent Sign In.");
+      setTab("agent_login");
+    } catch (e: any) {
+      setMsg(`Join failed: ${e?.message || e}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ✅ Owner management: list agents + remove
+  async function refreshAgents() {
+    setMsg("");
+    if (!supabase) return setMsg("Missing Supabase env.");
+
+    setBusy(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      if (!session?.access_token) throw new Error("Owner must sign in with email/password to manage agents.");
+
+      const r = await agencyListAgents(session.access_token);
+      setAgents(r.users || []);
+    } catch (e: any) {
+      setMsg(`Load agents failed: ${e?.message || e}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeAgent(user_id: string) {
+    setMsg("");
+    if (!supabase) return setMsg("Missing Supabase env.");
+
+    setBusy(true);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      if (!session?.access_token) throw new Error("Owner must sign in with email/password to manage agents.");
+
+      const r = await agencyRemoveAgent(session.access_token, user_id, deleteAuthUser);
+      setMsg(r.message || "Agent removed.");
+      await refreshAgents();
+    } catch (e: any) {
+      setMsg(`Remove failed: ${e?.message || e}`);
     } finally {
       setBusy(false);
     }
@@ -132,108 +255,136 @@ export function LoginPage({ onLogin }: { onLogin: (s: VerifySession) => void }) 
       <p style={styles.p}>Authorized agencies only. All searches are audited.</p>
 
       <div style={styles.tabs}>
-        <TabButton active={tab === "signin"} onClick={() => setTab("signin")}>
-          Sign In
-        </TabButton>
-        <TabButton active={tab === "agency"} onClick={() => setTab("agency")}>
-          Agency Sign Up
-        </TabButton>
-        <TabButton active={tab === "approve"} onClick={() => setTab("approve")}>
-          Approval Code
-        </TabButton>
+        <TabButton active={tab === "agency_login"} onClick={() => setTab("agency_login")}>Agency Sign In</TabButton>
+        <TabButton active={tab === "agent_login"} onClick={() => setTab("agent_login")}>Agent Sign In</TabButton>
+        <TabButton active={tab === "join"} onClick={() => setTab("join")}>Join</TabButton>
+        <TabButton active={tab === "agency_signup"} onClick={() => setTab("agency_signup")}>Agency Sign Up</TabButton>
+        <TabButton active={tab === "approve"} onClick={() => setTab("approve")}>Approval</TabButton>
+        <TabButton active={tab === "manage"} onClick={() => setTab("manage")}>Manage Agents</TabButton>
+        <TabButton active={tab === "accesskey"} onClick={() => setTab("accesskey")}>Access Key</TabButton>
       </div>
 
-      {tab === "signin" ? (
+      {tab === "agency_login" ? (
         <>
-          <label style={styles.label}>Office name</label>
-          <input
-            style={styles.input}
-            value={officeName}
-            onChange={(e) => setOfficeName(e.target.value)}
-            placeholder="e.g., Cook County Public Aid Office"
-            autoComplete="organization"
-          />
-
-          <label style={styles.label}>Access key</label>
-          <input
-            style={styles.input}
-            value={accessKey}
-            onChange={(e) => setAccessKey(e.target.value)}
-            placeholder="Provided by JobAppID"
-            autoComplete="off"
-          />
-
-          <button style={styles.button} onClick={submitSignin} disabled={busy}>
+          <div style={styles.sectionTitle}>Agency sign in (no email)</div>
+          <label style={styles.label}>Agency name</label>
+          <input style={styles.input} value={agencyNameLogin} onChange={(e) => setAgencyNameLogin(e.target.value)} />
+          <label style={styles.label}>Agency password</label>
+          <input style={styles.input} type="password" value={agencyPassLogin} onChange={(e) => setAgencyPassLogin(e.target.value)} />
+          <button style={styles.button} onClick={submitAgencyLogin} disabled={!canAgencyLogin}>
             {busy ? "Signing in…" : "Sign in"}
           </button>
         </>
       ) : null}
 
-      {tab === "agency" ? (
+      {tab === "agent_login" ? (
         <>
-          <div style={styles.sectionTitle}>Create an agency (owner)</div>
-          <div style={styles.sectionNote}>
-            After you submit, customer support will receive an approval code at <b>requestjobappid@jobappid.com</b>.
-          </div>
-
-          <label style={styles.label}>Agency name</label>
-          <input
-            style={styles.input}
-            value={agencyName}
-            onChange={(e) => setAgencyName(e.target.value)}
-            placeholder="e.g., Illinois Department of Human Services"
-            autoComplete="organization"
-          />
-
-          <label style={styles.label}>Owner email</label>
-          <input
-            style={styles.input}
-            value={agencyEmail}
-            onChange={(e) => setAgencyEmail(e.target.value)}
-            placeholder="you@agency.gov"
-            autoComplete="email"
-          />
-
+          <div style={styles.sectionTitle}>Agent sign in (email + password)</div>
+          <label style={styles.label}>Email</label>
+          <input style={styles.input} value={agentEmail} onChange={(e) => setAgentEmail(e.target.value)} />
           <label style={styles.label}>Password</label>
-          <input
-            style={styles.input}
-            value={agencyPass}
-            onChange={(e) => setAgencyPass(e.target.value)}
-            placeholder="Create a password"
-            autoComplete="new-password"
-            type="password"
-          />
-
-          <button style={styles.button} onClick={submitAgencySignup} disabled={!canAgencySignup}>
-            {busy ? "Submitting…" : "Submit agency for approval"}
+          <input style={styles.input} type="password" value={agentPass} onChange={(e) => setAgentPass(e.target.value)} />
+          <button style={styles.button} onClick={submitAgentLogin} disabled={!canAgentLogin}>
+            {busy ? "Signing in…" : "Sign in"}
           </button>
+        </>
+      ) : null}
 
-          <div style={styles.sectionFoot}>Note: If your owner email already exists, we’ll sign you in and continue.</div>
+      {tab === "join" ? (
+        <>
+          <div style={styles.sectionTitle}>Join agency (invite code)</div>
+          <div style={styles.sectionNote}>Agent must be signed in first (email + password).</div>
+          <label style={styles.label}>Invite code</label>
+          <input style={styles.input} value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} />
+          <button style={styles.button} onClick={submitJoin} disabled={busy}>
+            {busy ? "Joining…" : "Join"}
+          </button>
+        </>
+      ) : null}
+
+      {tab === "agency_signup" ? (
+        <>
+          <div style={styles.sectionTitle}>Create agency (owner)</div>
+          <label style={styles.label}>Agency name</label>
+          <input style={styles.input} value={agencyName} onChange={(e) => setAgencyName(e.target.value)} />
+          <label style={styles.label}>Owner email</label>
+          <input style={styles.input} value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} />
+          <label style={styles.label}>Password</label>
+          <input style={styles.input} type="password" value={ownerPass} onChange={(e) => setOwnerPass(e.target.value)} />
+          <button style={styles.button} onClick={submitAgencySignup} disabled={!canAgencySignup}>
+            {busy ? "Submitting…" : "Submit for approval"}
+          </button>
         </>
       ) : null}
 
       {tab === "approve" ? (
         <>
           <div style={styles.sectionTitle}>Enter approval code</div>
-          <div style={styles.sectionNote}>Customer support will provide your approval code after reviewing your signup.</div>
-
+          <div style={styles.sectionNote}>Owner must be signed in via Supabase (email + password).</div>
           <label style={styles.label}>Approval code</label>
-          <input
-            style={styles.input}
-            value={approvalCode}
-            onChange={(e) => setApprovalCode(e.target.value)}
-            placeholder="8 digits"
-            autoComplete="off"
-            inputMode="numeric"
-          />
-
+          <input style={styles.input} value={approvalCode} onChange={(e) => setApprovalCode(e.target.value)} inputMode="numeric" />
           <button style={styles.button} onClick={submitApprove} disabled={busy}>
-            {busy ? "Verifying…" : "Approve agency"}
+            {busy ? "Approving…" : "Approve"}
+          </button>
+        </>
+      ) : null}
+
+      {tab === "manage" ? (
+        <>
+          <div style={styles.sectionTitle}>Manage agents (owner only)</div>
+          <div style={styles.sectionNote}>
+            This uses the owner’s Supabase email/password session for authorization.
+          </div>
+
+          <label style={{ ...styles.label, display: "flex", gap: 10, alignItems: "center" }}>
+            <input
+              type="checkbox"
+              checked={deleteAuthUser}
+              onChange={(e) => setDeleteAuthUser(e.target.checked)}
+            />
+            Also delete agent’s Supabase Auth user (hard revoke)
+          </label>
+
+          <button style={styles.button} onClick={refreshAgents} disabled={busy}>
+            {busy ? "Loading…" : "Load users"}
           </button>
 
-          <div style={styles.sectionFoot}>
-            If you get “must be signed in”, go back to <b>Agency Sign Up</b> and sign in with your owner email/password first.
+          <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+            {agents.map((u) => (
+              <div key={u.user_id} style={styles.agentRow}>
+                <div>
+                  <div style={{ fontWeight: 900 }}>{u.email || u.user_id}</div>
+                  <div style={{ opacity: 0.75, fontSize: 12 }}>
+                    role: {u.role} • active: {String(u.is_active)}
+                  </div>
+                </div>
+                {u.role !== "owner" ? (
+                  <button
+                    style={styles.dangerBtn}
+                    disabled={busy}
+                    onClick={() => removeAgent(u.user_id)}
+                  >
+                    Remove
+                  </button>
+                ) : (
+                  <div style={{ opacity: 0.6, fontSize: 12 }}>Owner</div>
+                )}
+              </div>
+            ))}
           </div>
+        </>
+      ) : null}
+
+      {tab === "accesskey" ? (
+        <>
+          <div style={styles.sectionTitle}>Manual access key (optional)</div>
+          <label style={styles.label}>Office name</label>
+          <input style={styles.input} value={officeName} onChange={(e) => setOfficeName(e.target.value)} />
+          <label style={styles.label}>Access key</label>
+          <input style={styles.input} value={accessKey} onChange={(e) => setAccessKey(e.target.value)} />
+          <button style={styles.button} onClick={submitAccessKeySignin} disabled={busy}>
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
         </>
       ) : null}
 
@@ -244,11 +395,7 @@ export function LoginPage({ onLogin }: { onLogin: (s: VerifySession) => void }) 
 
 function TabButton(props: { active: boolean; onClick: () => void; children: any }) {
   return (
-    <button
-      onClick={props.onClick}
-      style={{ ...styles.tabBtn, ...(props.active ? styles.tabBtnActive : {}) }}
-      type="button"
-    >
+    <button onClick={props.onClick} style={{ ...styles.tabBtn, ...(props.active ? styles.tabBtnActive : {}) }} type="button">
       {props.children}
     </button>
   );
@@ -261,14 +408,20 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 18,
     padding: 22,
     boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-    maxWidth: 560,
+    maxWidth: 720,
     margin: "0 auto",
   },
   brandRow: { display: "flex", justifyContent: "center", marginBottom: 10 },
   logo: { width: 84, height: 84, objectFit: "contain", filter: "drop-shadow(0 6px 18px rgba(0,0,0,0.35))" },
   h2: { margin: 0, fontSize: 20, textAlign: "center" },
   p: { marginTop: 8, marginBottom: 14, opacity: 0.8, textAlign: "center" },
-  tabs: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 12, marginBottom: 12 },
+  tabs: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 12,
+  },
   tabBtn: {
     padding: "10px 10px",
     borderRadius: 12,
@@ -282,7 +435,6 @@ const styles: Record<string, React.CSSProperties> = {
   tabBtnActive: { background: "#fff", color: "#111" },
   sectionTitle: { marginTop: 6, fontWeight: 900, fontSize: 14 },
   sectionNote: { marginTop: 6, opacity: 0.8, fontSize: 13, lineHeight: 1.35 },
-  sectionFoot: { marginTop: 10, opacity: 0.7, fontSize: 12, lineHeight: 1.35 },
   label: { display: "block", marginTop: 12, fontSize: 13, opacity: 0.85 },
   input: {
     width: "100%",
@@ -311,5 +463,24 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 12,
     border: "1px solid rgba(255,157,157,0.35)",
     background: "rgba(255,157,157,0.10)",
+  },
+  agentRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+  },
+  dangerBtn: {
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,157,157,0.5)",
+    background: "rgba(255,157,157,0.18)",
+    color: "#fff",
+    fontWeight: 900,
+    cursor: "pointer",
   },
 };
