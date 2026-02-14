@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
-import { verifySearch } from "../lib/api";
+import { verifySearch, type VerifySearchResult } from "../lib/api";
 import type { AgentSession } from "../lib/session";
-import type { VerifySearchResult } from "../lib/api";
-import { Card, Field, Input, Select, Button, Alert, Divider } from "../components/UI";
+import { Alert, Button, Card, Field, Input, Select, Tag, Table, Th, Td } from "../components/UI";
 
 const REASONS = [
   { value: "unemployment", label: "Unemployment verification" },
@@ -19,7 +18,7 @@ export function SearchPage({ session }: { session: AgentSession }) {
   const [patronCode, setPatronCode] = useState("");
   const [reason, setReason] = useState(REASONS[0].value);
 
-  const [msg, setMsg] = useState("");
+  const [msg, setMsg] = useState<{ tone: "neutral" | "danger" | "success" | "warn"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<VerifySearchResult | null>(null);
 
@@ -34,7 +33,7 @@ export function SearchPage({ session }: { session: AgentSession }) {
   }, [badgeToken, patronCode, firstName, lastName, badgeLast4]);
 
   async function submit() {
-    setMsg("");
+    setMsg(null);
     setResult(null);
 
     const input = {
@@ -50,9 +49,9 @@ export function SearchPage({ session }: { session: AgentSession }) {
     try {
       const r = await verifySearch(session.accessKey, input);
       setResult(r);
-      if (!r.applications.length) setMsg("No applications found for this applicant.");
+      if (!r.applications.length) setMsg({ tone: "warn", text: "No applications found for this applicant." });
     } catch (e: any) {
-      setMsg(`Search failed: ${e?.message || e}`);
+      setMsg({ tone: "danger", text: `Search failed: ${e?.message || e}` });
     } finally {
       setBusy(false);
     }
@@ -64,7 +63,8 @@ export function SearchPage({ session }: { session: AgentSession }) {
     setBadgeLast4("");
     setBadgeToken("");
     setPatronCode("");
-    setMsg("");
+    setReason(REASONS[0].value);
+    setMsg(null);
     setResult(null);
   }
 
@@ -76,14 +76,10 @@ export function SearchPage({ session }: { session: AgentSession }) {
     <div style={{ display: "grid", gap: 16 }}>
       <Card
         title="Applicant lookup"
-        subtitle="Use Badge Token + PIN, or Name + Badge last 4. All searches are audited."
-        right={
-          <div style={{ fontSize: 12, opacity: 0.75, fontWeight: 900 }}>
-            Agent mode
-          </div>
-        }
+        subtitle="Enter either Badge token + PIN, or Name + Badge last 4. All searches are audit logged."
+        right={<Tag tone="info">Agent mode</Tag>}
       >
-        <div style={grid.wrap}>
+        <div style={grid}>
           <Field label="First name">
             <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
           </Field>
@@ -92,7 +88,7 @@ export function SearchPage({ session }: { session: AgentSession }) {
             <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
           </Field>
 
-          <Field label="Badge last 4" hint="####">
+          <Field label="Badge last 4" hint="Required with name">
             <Input
               value={badgeLast4}
               onChange={(e) => setBadgeLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
@@ -131,60 +127,60 @@ export function SearchPage({ session }: { session: AgentSession }) {
           </Field>
         </div>
 
-        <Divider />
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Button onClick={submit} disabled={busy || !canSearch}>
+        <div style={actions}>
+          <Button onClick={submit} disabled={busy || !canSearch} type="button">
             {busy ? "Searching…" : "Search"}
           </Button>
-
           <Button variant="secondary" onClick={clear} disabled={busy} type="button">
             Clear
           </Button>
         </div>
 
-        {msg ? <Alert tone={msg.toLowerCase().includes("failed") ? "danger" : "neutral"}>{msg}</Alert> : null}
+        {msg ? <Alert tone={msg.tone}>{msg.text}</Alert> : null}
       </Card>
 
       {patron ? (
         <Card
           title="Results"
-          subtitle={`Applicant: ${patron.first_name ?? ""} ${patron.last_name ?? ""} (Badge last4: ${badgeLast4View})`}
+          subtitle={
+            <>
+              Applicant: <b>{patron.first_name} {patron.last_name}</b> &nbsp;•&nbsp; Badge last4: <b>{badgeLast4View}</b>
+            </>
+          }
         >
-          <div style={{ overflowX: "auto" }}>
-            <table style={table.table}>
-              <thead>
+          <Table>
+            <thead>
+              <tr>
+                <Th>Submitted</Th>
+                <Th>Business</Th>
+                <Th>Store</Th>
+                <Th>Position</Th>
+                <Th>Status</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {apps.length === 0 ? (
                 <tr>
-                  <th style={table.th}>Submitted</th>
-                  <th style={table.th}>Business</th>
-                  <th style={table.th}>Store</th>
-                  <th style={table.th}>Position</th>
-                  <th style={table.th}>Status</th>
+                  <Td>—</Td>
+                  <Td colSpan={5}>No applications found.</Td>
                 </tr>
-              </thead>
-              <tbody>
-                {apps.length === 0 ? (
-                  <tr>
-                    <td style={table.td} colSpan={5}>
-                      No applications found.
-                    </td>
+              ) : (
+                apps.map((a) => (
+                  <tr key={a.id}>
+                    <Td>{fmtDate(a.submitted_at)}</Td>
+                    <Td>{a.business_name}</Td>
+                    <Td>{a.store_number || "—"}</Td>
+                    <Td>{a.position_title || "—"}</Td>
+                    <Td>
+                      <Tag tone={a.status.toLowerCase() === "rejected" ? "danger" : "neutral"}>
+                        {String(a.status || "").toLowerCase()}
+                      </Tag>
+                    </Td>
                   </tr>
-                ) : (
-                  apps.map((a) => (
-                    <tr key={a.id}>
-                      <td style={table.td}>{fmtDate(a.submitted_at)}</td>
-                      <td style={table.td}>{a.business_name}</td>
-                      <td style={table.td}>{a.store_number || "—"}</td>
-                      <td style={table.td}>{a.position_title || "—"}</td>
-                      <td style={table.td}>
-                        <span style={table.status}>{a.status.toLowerCase()}</span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </Table>
         </Card>
       ) : null}
     </div>
@@ -200,37 +196,15 @@ function fmtDate(v: string | null) {
   }
 }
 
-const grid: Record<string, React.CSSProperties> = {
-  wrap: {
-    display: "grid",
-    gap: 12,
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  },
+const grid: React.CSSProperties = {
+  display: "grid",
+  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
 };
 
-const table: Record<string, React.CSSProperties> = {
-  table: { width: "100%", borderCollapse: "collapse" },
-  th: {
-    textAlign: "left",
-    padding: "10px 8px",
-    fontSize: 12,
-    opacity: 0.75,
-    borderBottom: "1px solid rgba(255,255,255,0.10)",
-    whiteSpace: "nowrap",
-  },
-  td: {
-    padding: "10px 8px",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
-    verticalAlign: "top",
-  },
-  status: {
-    padding: "4px 8px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.16)",
-    fontSize: 12,
-    fontWeight: 900,
-    textTransform: "capitalize",
-    whiteSpace: "nowrap",
-    display: "inline-block",
-  },
+const actions: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  marginTop: 14,
+  flexWrap: "wrap",
 };

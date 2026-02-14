@@ -3,7 +3,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { SearchPage } from "./pages/SearchPage";
 import { getSession, setSession, clearSession, type AppSession } from "./lib/session";
 import { agencyAgentsList, agencyAgentCreate, agencyAgentDisable } from "./lib/api";
-import { Container, Card, Field, Input, Button, Alert, Divider, SectionTitle } from "./components/UI";
+import { Container, Card, Field, Input, Button, Alert, Divider, Tag, Table, Th, Td, GOV_THEME } from "./components/UI";
 
 export default function App() {
   const [session, setSessionState] = useState<AppSession | null>(() => getSession());
@@ -32,15 +32,14 @@ export default function App() {
 
   return (
     <div style={styles.page}>
-      {/* Header */}
       <header style={styles.header}>
         <div style={styles.headerInner}>
           <div style={styles.headerLeft}>
-            <div style={styles.brandRow}>
+            <div style={styles.brandLine}>
               <div style={styles.brand}>JobAppID</div>
-              <div style={styles.badge}>Verification</div>
+              <Tag>Verification</Tag>
             </div>
-            <div style={styles.title}>Verification Portal</div>
+            <div style={styles.subtitle}>Verification Portal</div>
           </div>
 
           {session ? (
@@ -50,9 +49,9 @@ export default function App() {
                 <div style={styles.metaValue}>{signedInLabel}</div>
               </div>
 
-              <button onClick={onLogout} style={styles.linkButton} type="button">
+              <Button variant="secondary" onClick={onLogout} type="button">
                 Sign out
-              </button>
+              </Button>
             </div>
           ) : (
             <div style={styles.meta}>
@@ -63,7 +62,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main */}
       <main style={styles.main}>
         <Container>
           {view === "login" ? (
@@ -76,11 +74,10 @@ export default function App() {
         </Container>
       </main>
 
-      {/* Footer */}
       <footer style={styles.footer}>
         <div style={styles.footerInner}>
           <div>© {new Date().getFullYear()} JobAppID</div>
-          <div style={{ opacity: 0.75 }}>For authorized verification only</div>
+          <div style={{ color: GOV_THEME.muted }}>For authorized verification only</div>
         </div>
       </footer>
     </div>
@@ -88,7 +85,7 @@ export default function App() {
 }
 
 function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
-  const [msg, setMsg] = useState("");
+  const [msg, setMsg] = useState<{ tone: "neutral" | "danger" | "success" | "warn"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const [agents, setAgents] = useState<
@@ -101,28 +98,28 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
 
   async function loadAgents() {
-    setMsg("");
+    setMsg(null);
     setCreatedPassword(null);
     setBusy(true);
     try {
       const r = await agencyAgentsList(props.agencyToken);
       setAgents(r.agents || []);
     } catch (e: any) {
-      setMsg(e?.message || String(e));
+      setMsg({ tone: "danger", text: e?.message || String(e) });
     } finally {
       setBusy(false);
     }
   }
 
   async function createAgent() {
-    setMsg("");
+    setMsg(null);
     setCreatedPassword(null);
 
     const username = newUsername.trim();
-    if (username.length < 3) return setMsg("Username must be at least 3 characters.");
+    if (username.length < 3) return setMsg({ tone: "warn", text: "Username must be at least 3 characters." });
 
-    if (passwordMode === "manual" && manualPassword.trim().length < 6) {
-      return setMsg("Password must be at least 6 characters.");
+    if (passwordMode === "manual") {
+      if (manualPassword.trim().length < 6) return setMsg({ tone: "warn", text: "Password must be at least 6 characters." });
     }
 
     setBusy(true);
@@ -130,36 +127,32 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
       if (passwordMode === "auto") {
         const r = await agencyAgentCreate(props.agencyToken, { username, generate_password: true });
         setCreatedPassword(r.password);
-        setMsg("Agent created. Copy the password now — it will not be shown again.");
+        setMsg({ tone: "success", text: "Agent created. Copy the password now — it will not be shown again." });
       } else {
-        await agencyAgentCreate(props.agencyToken, {
-          username,
-          generate_password: false,
-          password: manualPassword,
-        });
-        setMsg("Agent created with your password.");
+        await agencyAgentCreate(props.agencyToken, { username, generate_password: false, password: manualPassword });
+        setMsg({ tone: "success", text: "Agent created with your password." });
       }
 
       setNewUsername("");
       setManualPassword("");
       await loadAgents();
     } catch (e: any) {
-      setMsg(e?.message || String(e));
+      setMsg({ tone: "danger", text: e?.message || String(e) });
     } finally {
       setBusy(false);
     }
   }
 
   async function disableAgent(agent_id: string) {
-    setMsg("");
+    setMsg(null);
     setCreatedPassword(null);
     setBusy(true);
     try {
       await agencyAgentDisable(props.agencyToken, agent_id);
       await loadAgents();
-      setMsg("Agent disabled.");
+      setMsg({ tone: "success", text: "Agent disabled." });
     } catch (e: any) {
-      setMsg(e?.message || String(e));
+      setMsg({ tone: "danger", text: e?.message || String(e) });
     } finally {
       setBusy(false);
     }
@@ -169,13 +162,6 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
     loadAgents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const msgTone =
-    msg.toLowerCase().includes("failed") || msg.toLowerCase().includes("error")
-      ? "danger"
-      : msg.toLowerCase().includes("created") || msg.toLowerCase().includes("disabled")
-      ? "success"
-      : "neutral";
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -187,14 +173,13 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
           </>
         }
         right={
-          <Button variant="secondary" onClick={loadAgents} disabled={busy} type="button" style={{ padding: "10px 12px" }}>
-            {busy ? "Loading…" : "Refresh"}
+          <Button variant="secondary" onClick={loadAgents} disabled={busy} type="button">
+            {busy ? "Refreshing…" : "Refresh"}
           </Button>
         }
       >
-        <SectionTitle>Create agent</SectionTitle>
-        <div style={grid.form}>
-          <Field label="Username" hint="Min 3 characters">
+        <div style={formGrid}>
+          <Field label="New agent username" hint="Minimum 3 characters">
             <Input
               value={newUsername}
               onChange={(e) => setNewUsername(e.target.value)}
@@ -203,49 +188,55 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
             />
           </Field>
 
-          <div style={grid.modeRow}>
-            <button
-              type="button"
-              onClick={() => {
-                setPasswordMode("manual");
-                setCreatedPassword(null);
-                setMsg("");
-              }}
-              style={{ ...mode.btn, ...(passwordMode === "manual" ? mode.active : {}) }}
-              disabled={busy}
-            >
-              Set password
-            </button>
+          <div style={{ display: "grid", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Button
+                variant={passwordMode === "manual" ? "primary" : "secondary"}
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setPasswordMode("manual");
+                  setCreatedPassword(null);
+                  setMsg(null);
+                }}
+              >
+                Set password
+              </Button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setPasswordMode("auto");
-                setManualPassword("");
-                setCreatedPassword(null);
-                setMsg("");
-              }}
-              style={{ ...mode.btn, ...(passwordMode === "auto" ? mode.active : {}) }}
-              disabled={busy}
-            >
-              Auto-generate
-            </button>
+              <Button
+                variant={passwordMode === "auto" ? "primary" : "secondary"}
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setPasswordMode("auto");
+                  setManualPassword("");
+                  setCreatedPassword(null);
+                  setMsg(null);
+                }}
+              >
+                Auto-generate
+              </Button>
+            </div>
+
+            {passwordMode === "manual" ? (
+              <Field label="Password" hint="Minimum 6 characters">
+                <Input
+                  value={manualPassword}
+                  onChange={(e) => setManualPassword(e.target.value)}
+                  placeholder="Agent password"
+                  type="password"
+                  autoComplete="new-password"
+                />
+              </Field>
+            ) : (
+              <div style={{ fontSize: 13, color: GOV_THEME.muted }}>
+                A password will be generated and shown once after creation.
+              </div>
+            )}
           </div>
+        </div>
 
-          {passwordMode === "manual" ? (
-            <Field label="Password" hint="Min 6 characters">
-              <Input
-                value={manualPassword}
-                onChange={(e) => setManualPassword(e.target.value)}
-                placeholder="Agent password"
-                type="password"
-                autoComplete="new-password"
-              />
-            </Field>
-          ) : (
-            <Alert tone="warn">A password will be generated and shown one time after creation.</Alert>
-          )}
-
+        <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
           <Button onClick={createAgent} disabled={busy} type="button">
             {busy ? "Working…" : "Create agent"}
           </Button>
@@ -253,44 +244,62 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
 
         {createdPassword ? (
           <Alert tone="warn">
-            <div style={{ fontWeight: 900, marginBottom: 6 }}>Agent password (shown once):</div>
-            <div style={mono.password}>{createdPassword}</div>
+            <b>Agent password (shown once):</b>
+            <div style={{ marginTop: 6, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}>
+              {createdPassword}
+            </div>
           </Alert>
         ) : null}
 
-        {msg ? <Alert tone={msgTone as any}>{msg}</Alert> : null}
+        {msg ? <Alert tone={msg.tone}>{msg.text}</Alert> : null}
 
         <Divider />
 
-        <SectionTitle>Agents</SectionTitle>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>Agents</div>
+          <div style={{ color: GOV_THEME.muted, fontSize: 13 }}>{agents.length} total</div>
+        </div>
 
-        <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
-          {agents.length === 0 ? (
-            <div style={{ opacity: 0.75 }}>No agents yet.</div>
-          ) : (
-            agents.map((a) => (
-              <div key={a.id} style={grid.row}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 950, letterSpacing: 0.2 }}>{a.username}</div>
-                  <div style={grid.rowMeta}>
-                    status: <b>{a.is_active ? "active" : "disabled"}</b> • created: {safeDate(a.created_at)}
-                    {a.last_login_at ? ` • last login: ${safeDate(a.last_login_at)}` : ""}
-                  </div>
-                </div>
-
-                <Button
-                  variant="danger"
-                  onClick={() => disableAgent(a.id)}
-                  disabled={busy || !a.is_active}
-                  type="button"
-                  style={{ padding: "10px 12px", whiteSpace: "nowrap" }}
-                  title={!a.is_active ? "Already disabled" : "Disable agent"}
-                >
-                  Disable
-                </Button>
-              </div>
-            ))
-          )}
+        <div style={{ marginTop: 10 }}>
+          <Table>
+            <thead>
+              <tr>
+                <Th>Username</Th>
+                <Th>Status</Th>
+                <Th>Created</Th>
+                <Th>Last login</Th>
+                <Th></Th>
+              </tr>
+            </thead>
+            <tbody>
+              {agents.length === 0 ? (
+                <tr>
+                  <Td colSpan={5}>No agents yet.</Td>
+                </tr>
+              ) : (
+                agents.map((a) => (
+                  <tr key={a.id}>
+                    <Td><b>{a.username}</b></Td>
+                    <Td>
+                      {a.is_active ? <Tag tone="info">active</Tag> : <Tag tone="danger">disabled</Tag>}
+                    </Td>
+                    <Td>{safeDate(a.created_at)}</Td>
+                    <Td>{a.last_login_at ? safeDate(a.last_login_at) : "—"}</Td>
+                    <Td>
+                      <Button
+                        variant="danger"
+                        onClick={() => disableAgent(a.id)}
+                        disabled={busy || !a.is_active}
+                        type="button"
+                      >
+                        Disable
+                      </Button>
+                    </Td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </Table>
         </div>
       </Card>
     </div>
@@ -308,99 +317,53 @@ function safeDate(v: string) {
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
-    background: "radial-gradient(1200px 700px at 15% 0%, #1a1a24 0%, #0b0b0f 55%)",
-    color: "#fff",
-    fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif",
+    background: GOV_THEME.bg,
+    color: GOV_THEME.text,
+    fontFamily:
+      'system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif',
   },
   header: {
-    position: "sticky",
-    top: 0,
-    zIndex: 20,
-    backdropFilter: "blur(10px)",
-    background: "rgba(11,11,15,0.65)",
-    borderBottom: "1px solid rgba(255,255,255,0.10)",
+    background: "#ffffff",
+    borderBottom: `1px solid ${GOV_THEME.lineSoft}`,
   },
   headerInner: {
-    maxWidth: 980,
+    maxWidth: 1040,
     margin: "0 auto",
-    padding: "16px 22px",
+    padding: "14px 18px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     gap: 16,
+    flexWrap: "wrap",
   },
   headerLeft: { display: "grid", gap: 4 },
-  brandRow: { display: "flex", alignItems: "center", gap: 10 },
-  brand: { fontWeight: 900, letterSpacing: 0.5 },
-  badge: {
-    fontSize: 11,
-    fontWeight: 900,
-    padding: "4px 8px",
-    borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.16)",
-    background: "rgba(255,255,255,0.06)",
-    opacity: 0.92,
-  },
-  title: { fontSize: 13, opacity: 0.85 },
-  headerRight: { display: "flex", alignItems: "center", gap: 14 },
+  brandLine: { display: "flex", alignItems: "center", gap: 10 },
+  brand: { fontWeight: 900, letterSpacing: 0.2 },
+  subtitle: { fontSize: 13, color: GOV_THEME.muted },
+  headerRight: { display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" },
   meta: { textAlign: "right" },
-  metaLabel: { fontSize: 12, opacity: 0.7 },
-  metaValue: { fontSize: 14, fontWeight: 700 },
-  linkButton: {
-    background: "transparent",
-    color: "#fff",
-    border: "1px solid rgba(255,255,255,0.18)",
-    padding: "8px 10px",
-    borderRadius: 12,
-    cursor: "pointer",
-    fontWeight: 800,
+  metaLabel: { fontSize: 12, color: GOV_THEME.muted },
+  metaValue: { fontSize: 14, fontWeight: 800 },
+  main: { padding: "12px 0 18px 0" },
+  footer: {
+    background: "#ffffff",
+    borderTop: `1px solid ${GOV_THEME.lineSoft}`,
   },
-  main: { padding: "22px 0 30px 0" },
-  footer: { borderTop: "1px solid rgba(255,255,255,0.08)", opacity: 0.75 },
   footerInner: {
-    maxWidth: 980,
+    maxWidth: 1040,
     margin: "0 auto",
-    padding: "18px 22px",
+    padding: "14px 18px",
     display: "flex",
     justifyContent: "space-between",
     gap: 16,
     flexWrap: "wrap",
+    fontSize: 13,
+    color: GOV_THEME.muted,
   },
 };
 
-const grid: Record<string, React.CSSProperties> = {
-  form: { display: "grid", gap: 12, marginTop: 10 },
-  modeRow: { display: "flex", gap: 10, flexWrap: "wrap" },
-  row: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-    padding: "12px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
-  },
-  rowMeta: { opacity: 0.75, fontSize: 12, marginTop: 4, lineHeight: 1.25 },
-};
-
-const mode: Record<string, React.CSSProperties> = {
-  btn: {
-    padding: "10px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.18)",
-    background: "rgba(0,0,0,0.20)",
-    color: "#fff",
-    fontWeight: 950,
-    cursor: "pointer",
-  },
-  active: { background: "#fff", color: "#111", border: "1px solid rgba(255,255,255,0.14)" },
-};
-
-const mono: Record<string, React.CSSProperties> = {
-  password: {
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-    wordBreak: "break-all",
-    fontWeight: 900,
-  },
+const formGrid: React.CSSProperties = {
+  display: "grid",
+  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
 };
