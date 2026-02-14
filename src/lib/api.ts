@@ -38,7 +38,7 @@ function mustApiBaseUrl() {
 async function http<T>(
   path: string,
   opts: RequestInit & {
-    accessKey?: string; // verify endpoints
+    accessKey?: string; // agent verify endpoints
     agencyToken?: string; // agency dashboard endpoints
   }
 ) {
@@ -71,7 +71,7 @@ async function http<T>(
 }
 
 // =========================
-// Verify endpoints (Agent Search)
+// Agent Verify (Search)
 // =========================
 export async function verifyHealth(accessKey: string): Promise<{ ok: true }> {
   return http<{ ok: true }>(`/verify/health`, { method: "GET", accessKey });
@@ -109,9 +109,33 @@ export async function verifySearch(accessKey: string, input: VerifySearchInput):
 }
 
 // =========================
-// Agency auth + dashboard
+// Agency Signup + Approval
 // =========================
+export type AgencySignupResult = { ok: true; message?: string };
 
+export async function agencySignup(args: {
+  agency_name: string;
+  agency_email: string;
+  agency_password: string;
+}): Promise<AgencySignupResult> {
+  return http<AgencySignupResult>(`/agency/signup`, {
+    method: "POST",
+    body: JSON.stringify(args),
+  });
+}
+
+export type AgencyApproveResult = { ok: true; message?: string };
+
+export async function agencyApprove(args: { agency_name: string; approval_code: string }): Promise<AgencyApproveResult> {
+  return http<AgencyApproveResult>(`/agency/approve`, {
+    method: "POST",
+    body: JSON.stringify(args),
+  });
+}
+
+// =========================
+// Agency Login -> Dashboard token
+// =========================
 export type AgencyLoginResult = {
   ok: true;
   agency_id: string;
@@ -126,6 +150,9 @@ export async function agencyLogin(agency_name: string, agency_password: string):
   });
 }
 
+// =========================
+// Agent Login -> accessKey for search
+// =========================
 export type AgentLoginResult = { ok: true; officeName: string; accessKey: string };
 
 export async function agentLogin(agency_name: string, username: string, password: string): Promise<AgentLoginResult> {
@@ -135,6 +162,9 @@ export async function agentLogin(agency_name: string, username: string, password
   });
 }
 
+// =========================
+// Agency Dashboard (agents)
+// =========================
 export type AgencyAgentsListResult = {
   ok: true;
   agents: { id: string; username: string; is_active: boolean; created_at: string; last_login_at?: string | null }[];

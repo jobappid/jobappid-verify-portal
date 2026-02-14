@@ -1,19 +1,7 @@
 import { useMemo, useState } from "react";
 import { verifySearch } from "../lib/api";
-
-export type VerifySession = { officeName: string; accessKey: string };
-
-type VerifySearchResult = {
-  patron: { id: string; first_name: string | null; last_name: string | null; badge_last4: string | null };
-  applications: {
-    id: string;
-    submitted_at: string | null;
-    status: string;
-    business_name: string;
-    store_number?: string | null;
-    position_title?: string | null;
-  }[];
-};
+import type { AgentSession } from "../lib/session";
+import type { VerifySearchResult } from "../lib/api";
 
 const REASONS = [
   { value: "unemployment", label: "Unemployment verification" },
@@ -22,7 +10,7 @@ const REASONS = [
   { value: "other", label: "Other" },
 ];
 
-export function SearchPage({ session }: { session: VerifySession }) {
+export function SearchPage({ session }: { session: AgentSession }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [badgeLast4, setBadgeLast4] = useState("");
@@ -60,9 +48,8 @@ export function SearchPage({ session }: { session: VerifySession }) {
     setBusy(true);
     try {
       const r = await verifySearch(session.accessKey, input);
-      setResult(r as any);
-
-      if (!(r as any)?.applications?.length) setMsg("No applications found for this applicant.");
+      setResult(r);
+      if (!r.applications.length) setMsg("No applications found for this applicant.");
     } catch (e: any) {
       setMsg(`Search failed: ${e?.message || e}`);
     } finally {
@@ -81,7 +68,7 @@ export function SearchPage({ session }: { session: VerifySession }) {
   }
 
   const patron = result?.patron ?? null;
-  const badgeLast4View = patron?.badge_last4 ?? "—";
+  const badgeLast4View = result?.patron?.badge_last4 ?? "—";
   const apps = result?.applications ?? [];
 
   return (
@@ -151,25 +138,19 @@ export function SearchPage({ session }: { session: VerifySession }) {
           <button style={styles.secondary} onClick={clear} disabled={busy}>
             Clear
           </button>
-
-          {!canSearch ? (
-            <div style={styles.hint}>
-              Requires: <b>Token + PIN</b> OR <b>Name + last 4</b>
-            </div>
-          ) : null}
         </div>
 
         {msg && <div style={styles.msg}>{msg}</div>}
       </div>
 
-      {patron ? (
+      {patron && (
         <div style={styles.card}>
           <h3 style={{ margin: 0, fontSize: 16 }}>Results</h3>
 
           <div style={{ marginTop: 8, opacity: 0.85 }}>
             Applicant:{" "}
             <b>
-              {String(patron.first_name || "")} {String(patron.last_name || "")}
+              {patron.first_name} {patron.last_name}
             </b>{" "}
             <span style={{ opacity: 0.8 }}>(Badge last4: {badgeLast4View})</span>
           </div>
@@ -200,7 +181,7 @@ export function SearchPage({ session }: { session: VerifySession }) {
                       <td style={styles.td}>{a.store_number || "—"}</td>
                       <td style={styles.td}>{a.position_title || "—"}</td>
                       <td style={styles.td}>
-                        <span style={styles.status}>{String(a.status || "").toLowerCase() || "—"}</span>
+                        <span style={styles.status}>{a.status.toLowerCase()}</span>
                       </td>
                     </tr>
                   ))
@@ -208,12 +189,8 @@ export function SearchPage({ session }: { session: VerifySession }) {
               </tbody>
             </table>
           </div>
-
-          <div style={{ marginTop: 12, opacity: 0.75, fontSize: 12 }}>
-            All access is logged. If information appears incomplete, it may reflect missing business configuration.
-          </div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
@@ -263,7 +240,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 12,
     background: "#fff",
     color: "#111",
-    fontWeight: 900,
+    fontWeight: 800,
     cursor: "pointer",
   },
   secondary: {
@@ -272,10 +249,9 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.18)",
     background: "transparent",
     color: "#fff",
-    fontWeight: 800,
+    fontWeight: 700,
     cursor: "pointer",
   },
-  hint: { alignSelf: "center", opacity: 0.7, fontSize: 12 },
   msg: {
     marginTop: 12,
     padding: "10px 12px",
@@ -284,26 +260,14 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.04)",
   },
   table: { width: "100%", borderCollapse: "collapse" },
-  th: {
-    textAlign: "left",
-    padding: "10px 8px",
-    fontSize: 12,
-    opacity: 0.75,
-    borderBottom: "1px solid rgba(255,255,255,0.10)",
-  },
-  td: {
-    padding: "10px 8px",
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-    verticalAlign: "top",
-  },
+  th: { textAlign: "left", padding: "10px 8px", fontSize: 12, opacity: 0.75 },
+  td: { padding: "10px 8px" },
   status: {
-    display: "inline-block",
     padding: "4px 8px",
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.16)",
-    background: "rgba(0,0,0,0.20)",
     fontSize: 12,
-    fontWeight: 800,
+    fontWeight: 700,
     textTransform: "capitalize",
   },
 };
