@@ -3,7 +3,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { SearchPage } from "./pages/SearchPage";
 import { getSession, setSession, clearSession, type AppSession } from "./lib/session";
 import { agencyAgentsList, agencyAgentCreate, agencyAgentDisable } from "./lib/api";
-import { Container } from "./components/UI";
+import { Container, Card, Field, Input, Button, Alert, Divider, SectionTitle } from "./components/UI";
 
 export default function App() {
   const [session, setSessionState] = useState<AppSession | null>(() => getSession());
@@ -71,10 +71,7 @@ export default function App() {
           ) : view === "search" ? (
             <SearchPage session={session as any} />
           ) : (
-            <AgencyDashboard
-              agencyName={(session as any).agencyName}
-              agencyToken={(session as any).agencyToken}
-            />
+            <AgencyDashboard agencyName={(session as any).agencyName} agencyToken={(session as any).agencyToken} />
           )}
         </Container>
       </main>
@@ -124,8 +121,8 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
     const username = newUsername.trim();
     if (username.length < 3) return setMsg("Username must be at least 3 characters.");
 
-    if (passwordMode === "manual") {
-      if (manualPassword.trim().length < 6) return setMsg("Password must be at least 6 characters.");
+    if (passwordMode === "manual" && manualPassword.trim().length < 6) {
+      return setMsg("Password must be at least 6 characters.");
     }
 
     setBusy(true);
@@ -173,24 +170,40 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const msgTone =
+    msg.toLowerCase().includes("failed") || msg.toLowerCase().includes("error")
+      ? "danger"
+      : msg.toLowerCase().includes("created") || msg.toLowerCase().includes("disabled")
+      ? "success"
+      : "neutral";
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <div style={card.card}>
-        <h2 style={{ margin: 0, fontSize: 18 }}>Agency Dashboard</h2>
-        <div style={{ marginTop: 6, opacity: 0.8 }}>
-          Signed in as <b>{props.agencyName}</b>. Create agents and manage access.
-        </div>
+      <Card
+        title="Agency Dashboard"
+        subtitle={
+          <>
+            Signed in as <b>{props.agencyName}</b>. Create agents and manage access.
+          </>
+        }
+        right={
+          <Button variant="secondary" onClick={loadAgents} disabled={busy} type="button" style={{ padding: "10px 12px" }}>
+            {busy ? "Loading…" : "Refresh"}
+          </Button>
+        }
+      >
+        <SectionTitle>Create agent</SectionTitle>
+        <div style={grid.form}>
+          <Field label="Username" hint="Min 3 characters">
+            <Input
+              value={newUsername}
+              onChange={(e) => setNewUsername(e.target.value)}
+              placeholder="e.g. agent01"
+              autoComplete="off"
+            />
+          </Field>
 
-        <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
-          <input
-            style={card.input}
-            value={newUsername}
-            onChange={(e) => setNewUsername(e.target.value)}
-            placeholder="New agent username (e.g. agent01)"
-            autoComplete="off"
-          />
-
-          <div style={card.modeRow}>
+          <div style={grid.modeRow}>
             <button
               type="button"
               onClick={() => {
@@ -198,7 +211,7 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
                 setCreatedPassword(null);
                 setMsg("");
               }}
-              style={{ ...card.modeBtn, ...(passwordMode === "manual" ? card.modeBtnActive : {}) }}
+              style={{ ...mode.btn, ...(passwordMode === "manual" ? mode.active : {}) }}
               disabled={busy}
             >
               Set password
@@ -212,86 +225,84 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
                 setCreatedPassword(null);
                 setMsg("");
               }}
-              style={{ ...card.modeBtn, ...(passwordMode === "auto" ? card.modeBtnActive : {}) }}
+              style={{ ...mode.btn, ...(passwordMode === "auto" ? mode.active : {}) }}
               disabled={busy}
             >
-              Auto-generate password
+              Auto-generate
             </button>
           </div>
 
           {passwordMode === "manual" ? (
-            <input
-              style={card.input}
-              value={manualPassword}
-              onChange={(e) => setManualPassword(e.target.value)}
-              placeholder="Agent password (min 6)"
-              type="password"
-              autoComplete="new-password"
-            />
+            <Field label="Password" hint="Min 6 characters">
+              <Input
+                value={manualPassword}
+                onChange={(e) => setManualPassword(e.target.value)}
+                placeholder="Agent password"
+                type="password"
+                autoComplete="new-password"
+              />
+            </Field>
           ) : (
-            <div style={card.helperText}>A password will be generated and shown one time after creation.</div>
+            <Alert tone="warn">A password will be generated and shown one time after creation.</Alert>
           )}
 
-          <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr auto" }}>
-            <button style={card.secondaryBtn} onClick={loadAgents} disabled={busy} type="button">
-              {busy ? "Loading…" : "Refresh list"}
-            </button>
-
-            <button style={card.primaryBtn} onClick={createAgent} disabled={busy} type="button">
-              {busy ? "Working…" : "Create agent"}
-            </button>
-          </div>
+          <Button onClick={createAgent} disabled={busy} type="button">
+            {busy ? "Working…" : "Create agent"}
+          </Button>
         </div>
 
         {createdPassword ? (
-          <div style={card.notice}>
-            <div style={{ fontWeight: 900 }}>Agent password (shown once):</div>
-            <div
-              style={{
-                marginTop: 6,
-                fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                wordBreak: "break-all",
-              }}
-            >
-              {createdPassword}
-            </div>
-          </div>
+          <Alert tone="warn">
+            <div style={{ fontWeight: 900, marginBottom: 6 }}>Agent password (shown once):</div>
+            <div style={mono.password}>{createdPassword}</div>
+          </Alert>
         ) : null}
 
-        {msg ? <div style={card.msg}>{msg}</div> : null}
-      </div>
+        {msg ? <Alert tone={msgTone as any}>{msg}</Alert> : null}
 
-      <div style={card.card}>
-        <h3 style={{ margin: 0, fontSize: 15 }}>Agents</h3>
-        <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+        <Divider />
+
+        <SectionTitle>Agents</SectionTitle>
+
+        <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
           {agents.length === 0 ? (
             <div style={{ opacity: 0.75 }}>No agents yet.</div>
           ) : (
             agents.map((a) => (
-              <div key={a.id} style={card.row}>
-                <div>
-                  <div style={{ fontWeight: 900 }}>{a.username}</div>
-                  <div style={{ opacity: 0.75, fontSize: 12 }}>
-                    active: {String(a.is_active)} • created: {new Date(a.created_at).toLocaleString()}
-                    {a.last_login_at ? ` • last login: ${new Date(a.last_login_at).toLocaleString()}` : ""}
+              <div key={a.id} style={grid.row}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 950, letterSpacing: 0.2 }}>{a.username}</div>
+                  <div style={grid.rowMeta}>
+                    status: <b>{a.is_active ? "active" : "disabled"}</b> • created: {safeDate(a.created_at)}
+                    {a.last_login_at ? ` • last login: ${safeDate(a.last_login_at)}` : ""}
                   </div>
                 </div>
-                <button
-                  style={card.dangerBtn}
+
+                <Button
+                  variant="danger"
                   onClick={() => disableAgent(a.id)}
                   disabled={busy || !a.is_active}
-                  title={!a.is_active ? "Already disabled" : "Disable agent"}
                   type="button"
+                  style={{ padding: "10px 12px", whiteSpace: "nowrap" }}
+                  title={!a.is_active ? "Already disabled" : "Disable agent"}
                 >
                   Disable
-                </button>
+                </Button>
               </div>
             ))
           )}
         </div>
-      </div>
+      </Card>
     </div>
   );
+}
+
+function safeDate(v: string) {
+  try {
+    return new Date(v).toLocaleString();
+  } catch {
+    return v;
+  }
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -344,13 +355,8 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     fontWeight: 800,
   },
-  main: {
-    padding: "22px 0 30px 0",
-  },
-  footer: {
-    borderTop: "1px solid rgba(255,255,255,0.08)",
-    opacity: 0.75,
-  },
+  main: { padding: "22px 0 30px 0" },
+  footer: { borderTop: "1px solid rgba(255,255,255,0.08)", opacity: 0.75 },
   footerInner: {
     maxWidth: 980,
     margin: "0 auto",
@@ -362,84 +368,39 @@ const styles: Record<string, React.CSSProperties> = {
   },
 };
 
-const card: Record<string, React.CSSProperties> = {
-  card: {
-    background: "rgba(19,19,26,0.95)",
-    border: "1px solid rgba(255,255,255,0.10)",
-    borderRadius: 18,
-    padding: 22,
-    boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-  },
-  input: {
-    width: "100%",
-    padding: "12px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(0,0,0,0.35)",
-    color: "#fff",
-    outline: "none",
-  },
-  helperText: { fontSize: 12, opacity: 0.8, lineHeight: 1.35 },
+const grid: Record<string, React.CSSProperties> = {
+  form: { display: "grid", gap: 12, marginTop: 10 },
   modeRow: { display: "flex", gap: 10, flexWrap: "wrap" },
-  modeBtn: {
-    padding: "10px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.18)",
-    background: "rgba(0,0,0,0.20)",
-    color: "#fff",
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  modeBtnActive: { background: "#fff", color: "#111" },
-  primaryBtn: {
-    padding: "12px 14px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "#fff",
-    color: "#111",
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  secondaryBtn: {
-    padding: "12px 14px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.18)",
-    background: "transparent",
-    color: "#fff",
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  dangerBtn: {
-    padding: "10px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,157,157,0.5)",
-    background: "rgba(255,157,157,0.18)",
-    color: "#fff",
-    fontWeight: 900,
-    cursor: "pointer",
-  },
   row: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     gap: 12,
-    padding: "10px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-  },
-  msg: {
-    marginTop: 12,
-    padding: "10px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-  },
-  notice: {
-    marginTop: 12,
     padding: "12px 12px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "rgba(255,255,255,0.04)",
+  },
+  rowMeta: { opacity: 0.75, fontSize: 12, marginTop: 4, lineHeight: 1.25 },
+};
+
+const mode: Record<string, React.CSSProperties> = {
+  btn: {
+    padding: "10px 12px",
     borderRadius: 12,
-    border: "1px solid rgba(245,201,55,0.35)",
-    background: "rgba(245,201,55,0.10)",
+    border: "1px solid rgba(255,255,255,0.18)",
+    background: "rgba(0,0,0,0.20)",
+    color: "#fff",
+    fontWeight: 950,
+    cursor: "pointer",
+  },
+  active: { background: "#fff", color: "#111", border: "1px solid rgba(255,255,255,0.14)" },
+};
+
+const mono: Record<string, React.CSSProperties> = {
+  password: {
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    wordBreak: "break-all",
+    fontWeight: 900,
   },
 };

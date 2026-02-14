@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { verifySearch } from "../lib/api";
 import type { AgentSession } from "../lib/session";
 import type { VerifySearchResult } from "../lib/api";
+import { Card, Field, Input, Select, Button, Alert, Divider } from "../components/UI";
 
 const REASONS = [
   { value: "unemployment", label: "Unemployment verification" },
@@ -73,24 +74,26 @@ export function SearchPage({ session }: { session: AgentSession }) {
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <div style={styles.card}>
-        <h2 style={styles.h2}>Applicant lookup</h2>
-        <p style={styles.p}>
-          Enter either <b>Badge token + PIN</b> or <b>Name + Badge last 4</b>.
-        </p>
-
-        <div style={styles.grid}>
+      <Card
+        title="Applicant lookup"
+        subtitle="Use Badge Token + PIN, or Name + Badge last 4. All searches are audited."
+        right={
+          <div style={{ fontSize: 12, opacity: 0.75, fontWeight: 900 }}>
+            Agent mode
+          </div>
+        }
+      >
+        <div style={grid.wrap}>
           <Field label="First name">
-            <input style={styles.input} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+            <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
           </Field>
 
           <Field label="Last name">
-            <input style={styles.input} value={lastName} onChange={(e) => setLastName(e.target.value)} />
+            <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
           </Field>
 
-          <Field label="Badge last 4">
-            <input
-              style={styles.input}
+          <Field label="Badge last 4" hint="####">
+            <Input
               value={badgeLast4}
               onChange={(e) => setBadgeLast4(e.target.value.replace(/\D/g, "").slice(0, 4))}
               placeholder="####"
@@ -98,9 +101,8 @@ export function SearchPage({ session }: { session: AgentSession }) {
             />
           </Field>
 
-          <Field label="Badge token (optional alt)">
-            <input
-              style={styles.input}
+          <Field label="Badge token" hint="Alternative method">
+            <Input
               value={badgeToken}
               onChange={(e) => setBadgeToken(e.target.value)}
               placeholder="badge_xxx"
@@ -108,9 +110,8 @@ export function SearchPage({ session }: { session: AgentSession }) {
             />
           </Field>
 
-          <Field label="Applicant PIN (required with token)">
-            <input
-              style={styles.input}
+          <Field label="Applicant PIN" hint="Required with token">
+            <Input
               value={patronCode}
               onChange={(e) => setPatronCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
               placeholder="####"
@@ -120,68 +121,63 @@ export function SearchPage({ session }: { session: AgentSession }) {
           </Field>
 
           <Field label="Reason for lookup">
-            <select style={styles.input} value={reason} onChange={(e) => setReason(e.target.value)}>
+            <Select value={reason} onChange={(e) => setReason(e.target.value)}>
               {REASONS.map((r) => (
                 <option key={r.value} value={r.value}>
                   {r.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
         </div>
 
-        <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
-          <button style={styles.primary} onClick={submit} disabled={busy || !canSearch}>
-            {busy ? "Searching…" : "Search"}
-          </button>
+        <Divider />
 
-          <button style={styles.secondary} onClick={clear} disabled={busy}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Button onClick={submit} disabled={busy || !canSearch}>
+            {busy ? "Searching…" : "Search"}
+          </Button>
+
+          <Button variant="secondary" onClick={clear} disabled={busy} type="button">
             Clear
-          </button>
+          </Button>
         </div>
 
-        {msg && <div style={styles.msg}>{msg}</div>}
-      </div>
+        {msg ? <Alert tone={msg.toLowerCase().includes("failed") ? "danger" : "neutral"}>{msg}</Alert> : null}
+      </Card>
 
-      {patron && (
-        <div style={styles.card}>
-          <h3 style={{ margin: 0, fontSize: 16 }}>Results</h3>
-
-          <div style={{ marginTop: 8, opacity: 0.85 }}>
-            Applicant:{" "}
-            <b>
-              {patron.first_name} {patron.last_name}
-            </b>{" "}
-            <span style={{ opacity: 0.8 }}>(Badge last4: {badgeLast4View})</span>
-          </div>
-
-          <div style={{ marginTop: 12, overflowX: "auto" }}>
-            <table style={styles.table}>
+      {patron ? (
+        <Card
+          title="Results"
+          subtitle={`Applicant: ${patron.first_name ?? ""} ${patron.last_name ?? ""} (Badge last4: ${badgeLast4View})`}
+        >
+          <div style={{ overflowX: "auto" }}>
+            <table style={table.table}>
               <thead>
                 <tr>
-                  <th style={styles.th}>Submitted</th>
-                  <th style={styles.th}>Business</th>
-                  <th style={styles.th}>Store</th>
-                  <th style={styles.th}>Position</th>
-                  <th style={styles.th}>Status</th>
+                  <th style={table.th}>Submitted</th>
+                  <th style={table.th}>Business</th>
+                  <th style={table.th}>Store</th>
+                  <th style={table.th}>Position</th>
+                  <th style={table.th}>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {apps.length === 0 ? (
                   <tr>
-                    <td style={styles.td} colSpan={5}>
+                    <td style={table.td} colSpan={5}>
                       No applications found.
                     </td>
                   </tr>
                 ) : (
                   apps.map((a) => (
                     <tr key={a.id}>
-                      <td style={styles.td}>{fmtDate(a.submitted_at)}</td>
-                      <td style={styles.td}>{a.business_name}</td>
-                      <td style={styles.td}>{a.store_number || "—"}</td>
-                      <td style={styles.td}>{a.position_title || "—"}</td>
-                      <td style={styles.td}>
-                        <span style={styles.status}>{a.status.toLowerCase()}</span>
+                      <td style={table.td}>{fmtDate(a.submitted_at)}</td>
+                      <td style={table.td}>{a.business_name}</td>
+                      <td style={table.td}>{a.store_number || "—"}</td>
+                      <td style={table.td}>{a.position_title || "—"}</td>
+                      <td style={table.td}>
+                        <span style={table.status}>{a.status.toLowerCase()}</span>
                       </td>
                     </tr>
                   ))
@@ -189,17 +185,8 @@ export function SearchPage({ session }: { session: AgentSession }) {
               </tbody>
             </table>
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Field({ label, children }: any) {
-  return (
-    <div>
-      <label style={styles.label}>{label}</label>
-      {children}
+        </Card>
+      ) : null}
     </div>
   );
 }
@@ -213,61 +200,37 @@ function fmtDate(v: string | null) {
   }
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  card: {
-    background: "rgba(19,19,26,0.95)",
-    border: "1px solid rgba(255,255,255,0.10)",
-    borderRadius: 18,
-    padding: 22,
-    boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+const grid: Record<string, React.CSSProperties> = {
+  wrap: {
+    display: "grid",
+    gap: 12,
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   },
-  h2: { margin: 0, fontSize: 20 },
-  p: { marginTop: 8, marginBottom: 16, opacity: 0.82 },
-  grid: { display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" },
-  label: { display: "block", marginTop: 2, fontSize: 13, opacity: 0.85 },
-  input: {
-    width: "100%",
-    marginTop: 6,
-    padding: "12px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(0,0,0,0.35)",
-    color: "#fff",
-    outline: "none",
-  },
-  primary: {
-    padding: "12px 14px",
-    borderRadius: 12,
-    background: "#fff",
-    color: "#111",
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  secondary: {
-    padding: "12px 14px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.18)",
-    background: "transparent",
-    color: "#fff",
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-  msg: {
-    marginTop: 12,
-    padding: "10px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
-  },
+};
+
+const table: Record<string, React.CSSProperties> = {
   table: { width: "100%", borderCollapse: "collapse" },
-  th: { textAlign: "left", padding: "10px 8px", fontSize: 12, opacity: 0.75 },
-  td: { padding: "10px 8px" },
+  th: {
+    textAlign: "left",
+    padding: "10px 8px",
+    fontSize: 12,
+    opacity: 0.75,
+    borderBottom: "1px solid rgba(255,255,255,0.10)",
+    whiteSpace: "nowrap",
+  },
+  td: {
+    padding: "10px 8px",
+    borderBottom: "1px solid rgba(255,255,255,0.06)",
+    verticalAlign: "top",
+  },
   status: {
     padding: "4px 8px",
     borderRadius: 999,
     border: "1px solid rgba(255,255,255,0.16)",
     fontSize: 12,
-    fontWeight: 700,
+    fontWeight: 900,
     textTransform: "capitalize",
+    whiteSpace: "nowrap",
+    display: "inline-block",
   },
 };
