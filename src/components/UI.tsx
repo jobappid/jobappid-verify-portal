@@ -1,6 +1,27 @@
 // src/components/UI.tsx
 import React from "react";
 
+export const GOV_THEME = {
+  pageBg: "#f5f7fb",
+  headerBg: "#ffffff",
+  cardBg: "#ffffff",
+  text: "#0f172a",
+  muted: "#475569",
+  faint: "#64748b",
+  border: "#e2e8f0",
+  borderSoft: "#edf2f7",
+  inputBg: "#ffffff",
+  inputBorder: "#cbd5e1",
+  focus: "#2563eb",
+  dangerBg: "#fff1f2",
+  dangerBorder: "#fecdd3",
+  shadow: "0 10px 30px rgba(15,23,42,0.08)",
+} as const;
+
+export function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <div style={ui.sectionTitle}>{children}</div>;
+}
+
 /** Layout */
 export function Container({ children }: { children: React.ReactNode }) {
   return <div style={ui.container}>{children}</div>;
@@ -15,7 +36,7 @@ export function Card({
 }: {
   children: React.ReactNode;
   title?: string;
-  subtitle?: React.ReactNode; // ✅ allow JSX (fixes your App.tsx error)
+  subtitle?: React.ReactNode;
   right?: React.ReactNode;
 }) {
   return (
@@ -34,42 +55,10 @@ export function Card({
   );
 }
 
-export function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <div style={ui.sectionTitle}>{children}</div>;
+export function Divider() {
+  return <div style={ui.divider} />;
 }
 
-/** Tabs */
-export function Tabs({
-  tabs,
-  value,
-  onChange,
-}: {
-  tabs: { key: string; label: string }[];
-  value: string;
-  onChange: (k: string) => void;
-}) {
-  return (
-    <div style={ui.tabsWrap}>
-      <div style={ui.tabs}>
-        {tabs.map((t) => {
-          const active = value === t.key;
-          return (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => onChange(t.key)}
-              style={{ ...ui.tab, ...(active ? ui.tabActive : {}) }}
-            >
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/** Form */
 export function Field({
   label,
   hint,
@@ -104,7 +93,6 @@ export function Button({
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "danger";
 }) {
-  const base = ui.btn;
   const v =
     variant === "secondary"
       ? ui.btnSecondary
@@ -112,10 +100,9 @@ export function Button({
       ? ui.btnDanger
       : ui.btnPrimary;
 
-  return <button {...props} style={{ ...base, ...v, ...(props.style || {}) }} />;
+  return <button {...props} style={{ ...ui.btn, ...v, ...(props.style || {}) }} />;
 }
 
-/** Alerts */
 export function Alert({
   children,
   tone = "neutral",
@@ -135,38 +122,46 @@ export function Alert({
   return <div style={{ ...ui.alertBase, ...s }}>{children}</div>;
 }
 
-export function Divider() {
-  return <div style={ui.divider} />;
+/** Tabs */
+export function Tabs({
+  tabs,
+  value,
+  onChange,
+}: {
+  tabs: { key: string; label: string }[];
+  value: string;
+  onChange: (k: string) => void;
+}) {
+  return (
+    <div style={ui.tabsWrap}>
+      {tabs.map((t) => {
+        const active = value === t.key;
+        return (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => onChange(t.key)}
+            style={{ ...ui.tab, ...(active ? ui.tabActive : {}) }}
+          >
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
-/** Tables (✅ fixes colSpan + missing children errors) */
+/** Tables */
 export function Table(props: React.TableHTMLAttributes<HTMLTableElement>) {
   return <table {...props} style={{ ...ui.table, ...(props.style || {}) }} />;
 }
-
-export function Thead(props: React.HTMLAttributes<HTMLTableSectionElement>) {
-  return <thead {...props} />;
-}
-
-export function Tbody(props: React.HTMLAttributes<HTMLTableSectionElement>) {
-  return <tbody {...props} />;
-}
-
-export function Tr(props: React.HTMLAttributes<HTMLTableRowElement>) {
-  return <tr {...props} />;
-}
-
 export function Th(props: React.ThHTMLAttributes<HTMLTableCellElement>) {
-  // ✅ children now optional because React.ThHTMLAttributes already includes it
   return <th {...props} style={{ ...ui.th, ...(props.style || {}) }} />;
 }
-
 export function Td(props: React.TdHTMLAttributes<HTMLTableCellElement>) {
-  // ✅ supports colSpan, rowSpan, etc.
   return <td {...props} style={{ ...ui.td, ...(props.style || {}) }} />;
 }
 
-/** Small status tag (optional, if you’re using <Tag tone="...">) */
 export function Tag({
   children,
   tone = "neutral",
@@ -174,7 +169,7 @@ export function Tag({
   children: React.ReactNode;
   tone?: "neutral" | "info" | "success" | "warn" | "danger";
 }) {
-  const toneStyle =
+  const s =
     tone === "danger"
       ? ui.tagDanger
       : tone === "warn"
@@ -185,154 +180,131 @@ export function Tag({
       ? ui.tagInfo
       : ui.tag;
 
-  return <span style={{ ...ui.tagBase, ...toneStyle }}>{children}</span>;
+  return <span style={{ ...ui.tagBase, ...s }}>{children}</span>;
 }
 
 const ui: Record<string, React.CSSProperties> = {
-  container: { maxWidth: 1040, margin: "0 auto", padding: "28px 22px" },
+  container: {
+    maxWidth: 1080,
+    margin: "0 auto",
+    padding: "28px 18px",
+  },
 
-  // Government minimal: restrained, clean, low-contrast depth
+  sectionTitle: { fontSize: 12, fontWeight: 800, color: GOV_THEME.muted, textTransform: "uppercase", letterSpacing: 0.8 },
+
   card: {
-    background: "rgba(18,18,22,0.78)",
-    border: "1px solid rgba(255,255,255,0.10)",
+    background: GOV_THEME.cardBg,
+    border: `1px solid ${GOV_THEME.border}`,
     borderRadius: 16,
     padding: 18,
-    boxShadow: "0 10px 28px rgba(0,0,0,0.35)",
-    backdropFilter: "blur(10px)",
+    boxShadow: GOV_THEME.shadow,
   },
   cardHeader: {
     display: "flex",
     justifyContent: "space-between",
-    gap: 16,
+    gap: 12,
     alignItems: "flex-start",
     paddingBottom: 12,
     marginBottom: 14,
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
+    borderBottom: `1px solid ${GOV_THEME.borderSoft}`,
   },
-  cardTitle: { fontSize: 15, fontWeight: 800, letterSpacing: 0.2 },
-  cardSubtitle: { fontSize: 13, opacity: 0.8, lineHeight: 1.35 },
+  cardTitle: { fontSize: 16, fontWeight: 800, color: GOV_THEME.text },
+  cardSubtitle: { fontSize: 13, color: GOV_THEME.muted, lineHeight: 1.35 },
 
-  sectionTitle: { fontSize: 12, fontWeight: 800, opacity: 0.9 },
-
-  tabsWrap: {
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.10)",
-    borderRadius: 14,
-    padding: 6,
-  },
-  tabs: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 },
-  tab: {
-    padding: "10px 10px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "transparent",
-    color: "#fff",
-    cursor: "pointer",
-    fontWeight: 800,
-    fontSize: 12,
-    letterSpacing: 0.2,
-  },
-  tabActive: { background: "#fff", color: "#111" },
+  divider: { height: 1, background: GOV_THEME.borderSoft, margin: "14px 0" },
 
   labelRow: { display: "flex", justifyContent: "space-between", gap: 12 },
-  label: { fontSize: 12, opacity: 0.85 },
-  hint: { fontSize: 12, opacity: 0.55 },
+  label: { fontSize: 12, fontWeight: 700, color: GOV_THEME.text },
+  hint: { fontSize: 12, color: GOV_THEME.faint },
 
+  // ✅ fixes overflow everywhere
   input: {
     width: "100%",
+    boxSizing: "border-box",
     padding: "12px 12px",
     borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(0,0,0,0.28)",
-    color: "#fff",
+    border: `1px solid ${GOV_THEME.inputBorder}`,
+    background: GOV_THEME.inputBg,
+    color: GOV_THEME.text,
     outline: "none",
   },
 
   btn: {
     padding: "12px 14px",
     borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
+    border: `1px solid ${GOV_THEME.border}`,
     cursor: "pointer",
     fontWeight: 800,
+    boxSizing: "border-box",
   },
-  btnPrimary: { background: "#fff", color: "#111" },
-  btnSecondary: { background: "transparent", color: "#fff", border: "1px solid rgba(255,255,255,0.18)" },
-  btnDanger: {
-    background: "rgba(255,157,157,0.16)",
-    border: "1px solid rgba(255,157,157,0.45)",
-    color: "#fff",
-  },
+  btnPrimary: { background: GOV_THEME.focus, border: `1px solid ${GOV_THEME.focus}`, color: "#fff" },
+  btnSecondary: { background: "#fff", color: GOV_THEME.text },
+  btnDanger: { background: GOV_THEME.dangerBg, border: `1px solid ${GOV_THEME.dangerBorder}`, color: "#9f1239" },
 
   alertBase: {
     marginTop: 12,
     padding: "10px 12px",
     borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.04)",
+    border: `1px solid ${GOV_THEME.border}`,
+    background: "#fff",
+    color: GOV_THEME.text,
     lineHeight: 1.35,
   },
   alert: {},
-  alertDanger: { border: "1px solid rgba(255,157,157,0.35)", background: "rgba(255,157,157,0.10)" },
-  alertSuccess: { border: "1px solid rgba(157,255,176,0.30)", background: "rgba(157,255,176,0.08)" },
-  alertWarn: { border: "1px solid rgba(245,201,55,0.30)", background: "rgba(245,201,55,0.10)" },
+  alertDanger: { border: `1px solid ${GOV_THEME.dangerBorder}`, background: GOV_THEME.dangerBg, color: "#9f1239" },
+  alertSuccess: { border: "1px solid #bbf7d0", background: "#f0fdf4", color: "#166534" },
+  alertWarn: { border: "1px solid #fde68a", background: "#fffbeb", color: "#92400e" },
 
-  divider: { height: 1, background: "rgba(255,255,255,0.08)", margin: "14px 0" },
+  // ✅ tabs that look like a government portal (segmented control)
+  tabsWrap: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 8,
+    marginTop: 10,
+  },
+  tab: {
+    padding: "10px 10px",
+    borderRadius: 12,
+    border: `1px solid ${GOV_THEME.border}`,
+    background: "#fff",
+    color: GOV_THEME.text,
+    cursor: "pointer",
+    fontWeight: 800,
+    fontSize: 12,
+    boxSizing: "border-box",
+  },
+  tabActive: { background: GOV_THEME.text, border: `1px solid ${GOV_THEME.text}`, color: "#fff" },
 
   table: { width: "100%", borderCollapse: "collapse" },
   th: {
     textAlign: "left",
     padding: "10px 10px",
     fontSize: 12,
-    opacity: 0.8,
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
+    color: GOV_THEME.muted,
+    borderBottom: `1px solid ${GOV_THEME.border}`,
     whiteSpace: "nowrap",
   },
   td: {
     padding: "10px 10px",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
+    borderBottom: `1px solid ${GOV_THEME.borderSoft}`,
+    color: GOV_THEME.text,
     verticalAlign: "top",
   },
 
   tagBase: {
     display: "inline-flex",
     alignItems: "center",
-    padding: "4px 8px",
+    padding: "4px 10px",
     borderRadius: 999,
     fontSize: 12,
     fontWeight: 800,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
+    border: `1px solid ${GOV_THEME.border}`,
+    background: "#fff",
+    color: GOV_THEME.text,
   },
   tag: {},
-  tagInfo: { background: "rgba(255,255,255,0.06)" },
-  tagSuccess: { border: "1px solid rgba(157,255,176,0.35)", background: "rgba(157,255,176,0.10)" },
-  tagWarn: { border: "1px solid rgba(245,201,55,0.35)", background: "rgba(245,201,55,0.12)" },
-  tagDanger: { border: "1px solid rgba(255,157,157,0.40)", background: "rgba(255,157,157,0.12)" },
+  tagInfo: { background: "#f1f5f9" },
+  tagSuccess: { border: "1px solid #bbf7d0", background: "#f0fdf4", color: "#166534" },
+  tagWarn: { border: "1px solid #fde68a", background: "#fffbeb", color: "#92400e" },
+  tagDanger: { border: `1px solid ${GOV_THEME.dangerBorder}`, background: GOV_THEME.dangerBg, color: "#9f1239" },
 };
-
-export const GOV_THEME = {
-  // core text
-  text: "#ffffff",
-  muted: "rgba(255,255,255,0.72)",
-  faint: "rgba(255,255,255,0.55)",
-
-  bg: "rgba(18,18,22,0.78)",           // card/background surface
-  lineSoft: "rgba(255,255,255,0.08)",  // soft divider line
-
-  // surfaces
-  pageBg: "radial-gradient(1200px 700px at 15% 0%, #1a1a24 0%, #0b0b0f 55%)",
-  headerBg: "rgba(11,11,15,0.65)",
-  cardBg: "rgba(18,18,22,0.78)",
-
-  // borders
-  border: "rgba(255,255,255,0.12)",
-  borderSoft: "rgba(255,255,255,0.08)",
-
-  // controls
-  inputBg: "rgba(0,0,0,0.28)",
-
-  // semantic
-  dangerBg: "rgba(255,157,157,0.16)",
-  dangerBorder: "rgba(255,157,157,0.45)",
-} as const;
-

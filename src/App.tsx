@@ -3,14 +3,12 @@ import { LoginPage } from "./pages/LoginPage";
 import { SearchPage } from "./pages/SearchPage";
 import { getSession, setSession, clearSession, type AppSession } from "./lib/session";
 import { agencyAgentsList, agencyAgentCreate, agencyAgentDisable } from "./lib/api";
-import { Container, Card, Field, Input, Button, Alert, Divider, Tag, Table, Th, Td, GOV_THEME } from "./components/UI";
+import { Container, Card, Field, Input, Button, Table, Th, Td, Tag, Alert, Divider, GOV_THEME } from "./components/UI";
 
 export default function App() {
   const [session, setSessionState] = useState<AppSession | null>(() => getSession());
 
-  useEffect(() => {
-    setSessionState(getSession());
-  }, []);
+  useEffect(() => setSessionState(getSession()), []);
 
   const view = useMemo(() => {
     if (!session) return "login";
@@ -34,12 +32,20 @@ export default function App() {
     <div style={styles.page}>
       <header style={styles.header}>
         <div style={styles.headerInner}>
-          <div style={styles.headerLeft}>
-            <div style={styles.brandLine}>
+          <div style={styles.brandLeft}>
+            <img
+              src="/JobAppID-Logo.png"
+              alt="JobAppID"
+              style={styles.logo}
+              onError={(e) => {
+                // If logo path is wrong, at least don’t break layout
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
+            />
+            <div style={{ display: "grid", gap: 2 }}>
               <div style={styles.brand}>JobAppID</div>
-              <Tag>Verification</Tag>
+              <div style={styles.sub}>Verification Portal</div>
             </div>
-            <div style={styles.subtitle}>Verification Portal</div>
           </div>
 
           {session ? (
@@ -48,14 +54,13 @@ export default function App() {
                 <div style={styles.metaLabel}>Signed in as</div>
                 <div style={styles.metaValue}>{signedInLabel}</div>
               </div>
-
-              <Button variant="secondary" onClick={onLogout} type="button">
+              <Button variant="secondary" onClick={onLogout} type="button" style={{ padding: "10px 12px" }}>
                 Sign out
               </Button>
             </div>
           ) : (
             <div style={styles.meta}>
-              <div style={styles.metaLabel}>Read-only</div>
+              <div style={styles.metaLabel}>Security</div>
               <div style={styles.metaValue}>Audit logged</div>
             </div>
           )}
@@ -77,7 +82,7 @@ export default function App() {
       <footer style={styles.footer}>
         <div style={styles.footerInner}>
           <div>© {new Date().getFullYear()} JobAppID</div>
-          <div style={{ color: GOV_THEME.muted }}>For authorized verification only</div>
+          <div style={{ color: GOV_THEME.faint }}>For authorized verification only</div>
         </div>
       </footer>
     </div>
@@ -85,7 +90,7 @@ export default function App() {
 }
 
 function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
-  const [msg, setMsg] = useState<{ tone: "neutral" | "danger" | "success" | "warn"; text: string } | null>(null);
+  const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
   const [agents, setAgents] = useState<
@@ -98,28 +103,28 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
 
   async function loadAgents() {
-    setMsg(null);
+    setMsg("");
     setCreatedPassword(null);
     setBusy(true);
     try {
       const r = await agencyAgentsList(props.agencyToken);
       setAgents(r.agents || []);
     } catch (e: any) {
-      setMsg({ tone: "danger", text: e?.message || String(e) });
+      setMsg(e?.message || String(e));
     } finally {
       setBusy(false);
     }
   }
 
   async function createAgent() {
-    setMsg(null);
+    setMsg("");
     setCreatedPassword(null);
 
     const username = newUsername.trim();
-    if (username.length < 3) return setMsg({ tone: "warn", text: "Username must be at least 3 characters." });
+    if (username.length < 3) return setMsg("Username must be at least 3 characters.");
 
-    if (passwordMode === "manual") {
-      if (manualPassword.trim().length < 6) return setMsg({ tone: "warn", text: "Password must be at least 6 characters." });
+    if (passwordMode === "manual" && manualPassword.trim().length < 6) {
+      return setMsg("Password must be at least 6 characters.");
     }
 
     setBusy(true);
@@ -127,41 +132,38 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
       if (passwordMode === "auto") {
         const r = await agencyAgentCreate(props.agencyToken, { username, generate_password: true });
         setCreatedPassword(r.password);
-        setMsg({ tone: "success", text: "Agent created. Copy the password now — it will not be shown again." });
+        setMsg("Agent created. Copy the password now — it will not be shown again.");
       } else {
         await agencyAgentCreate(props.agencyToken, { username, generate_password: false, password: manualPassword });
-        setMsg({ tone: "success", text: "Agent created with your password." });
+        setMsg("Agent created with your password.");
       }
 
       setNewUsername("");
       setManualPassword("");
       await loadAgents();
     } catch (e: any) {
-      setMsg({ tone: "danger", text: e?.message || String(e) });
+      setMsg(e?.message || String(e));
     } finally {
       setBusy(false);
     }
   }
 
   async function disableAgent(agent_id: string) {
-    setMsg(null);
+    setMsg("");
     setCreatedPassword(null);
     setBusy(true);
     try {
       await agencyAgentDisable(props.agencyToken, agent_id);
       await loadAgents();
-      setMsg({ tone: "success", text: "Agent disabled." });
+      setMsg("Agent disabled.");
     } catch (e: any) {
-      setMsg({ tone: "danger", text: e?.message || String(e) });
+      setMsg(e?.message || String(e));
     } finally {
       setBusy(false);
     }
   }
 
-  useEffect(() => {
-    loadAgents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => void loadAgents(), []);
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -173,13 +175,13 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
           </>
         }
         right={
-          <Button variant="secondary" onClick={loadAgents} disabled={busy} type="button">
-            {busy ? "Refreshing…" : "Refresh"}
+          <Button variant="secondary" onClick={loadAgents} disabled={busy} type="button" style={{ padding: "10px 12px" }}>
+            {busy ? "Loading…" : "Refresh"}
           </Button>
         }
       >
         <div style={formGrid}>
-          <Field label="New agent username" hint="Minimum 3 characters">
+          <Field label="Username" hint="Min 3 characters">
             <Input
               value={newUsername}
               onChange={(e) => setNewUsername(e.target.value)}
@@ -189,6 +191,7 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
           </Field>
 
           <div style={{ display: "grid", gap: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: GOV_THEME.text }}>Password</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <Button
                 variant={passwordMode === "manual" ? "primary" : "secondary"}
@@ -197,12 +200,12 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
                 onClick={() => {
                   setPasswordMode("manual");
                   setCreatedPassword(null);
-                  setMsg(null);
+                  setMsg("");
                 }}
+                style={{ padding: "10px 12px" }}
               >
                 Set password
               </Button>
-
               <Button
                 variant={passwordMode === "auto" ? "primary" : "secondary"}
                 type="button"
@@ -211,32 +214,31 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
                   setPasswordMode("auto");
                   setManualPassword("");
                   setCreatedPassword(null);
-                  setMsg(null);
+                  setMsg("");
                 }}
+                style={{ padding: "10px 12px" }}
               >
                 Auto-generate
               </Button>
             </div>
 
             {passwordMode === "manual" ? (
-              <Field label="Password" hint="Minimum 6 characters">
-                <Input
-                  value={manualPassword}
-                  onChange={(e) => setManualPassword(e.target.value)}
-                  placeholder="Agent password"
-                  type="password"
-                  autoComplete="new-password"
-                />
-              </Field>
+              <Input
+                value={manualPassword}
+                onChange={(e) => setManualPassword(e.target.value)}
+                placeholder="Min 6 characters"
+                type="password"
+                autoComplete="new-password"
+              />
             ) : (
-              <div style={{ fontSize: 13, color: GOV_THEME.muted }}>
-                A password will be generated and shown once after creation.
+              <div style={{ fontSize: 12, color: GOV_THEME.muted }}>
+                A password will be generated and shown one time after creation.
               </div>
             )}
           </div>
         </div>
 
-        <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
           <Button onClick={createAgent} disabled={busy} type="button">
             {busy ? "Working…" : "Create agent"}
           </Button>
@@ -244,23 +246,19 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
 
         {createdPassword ? (
           <Alert tone="warn">
-            <b>Agent password (shown once):</b>
+            <div style={{ fontWeight: 900 }}>Agent password (shown once)</div>
             <div style={{ marginTop: 6, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}>
               {createdPassword}
             </div>
           </Alert>
         ) : null}
 
-        {msg ? <Alert tone={msg.tone}>{msg.text}</Alert> : null}
+        {msg ? <Alert tone="neutral">{msg}</Alert> : null}
 
         <Divider />
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <div style={{ fontSize: 14, fontWeight: 800 }}>Agents</div>
-          <div style={{ color: GOV_THEME.muted, fontSize: 13 }}>{agents.length} total</div>
-        </div>
-
-        <div style={{ marginTop: 10 }}>
+        <div style={{ fontSize: 13, fontWeight: 900, color: GOV_THEME.text, marginBottom: 10 }}>Agents</div>
+        <div style={{ overflowX: "auto" }}>
           <Table>
             <thead>
               <tr>
@@ -279,18 +277,17 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
               ) : (
                 agents.map((a) => (
                   <tr key={a.id}>
-                    <Td><b>{a.username}</b></Td>
-                    <Td>
-                      {a.is_active ? <Tag tone="info">active</Tag> : <Tag tone="danger">disabled</Tag>}
-                    </Td>
-                    <Td>{safeDate(a.created_at)}</Td>
-                    <Td>{a.last_login_at ? safeDate(a.last_login_at) : "—"}</Td>
-                    <Td>
+                    <Td style={{ fontWeight: 800 }}>{a.username}</Td>
+                    <Td>{a.is_active ? <Tag tone="success">Active</Tag> : <Tag tone="danger">Disabled</Tag>}</Td>
+                    <Td>{fmt(a.created_at)}</Td>
+                    <Td>{a.last_login_at ? fmt(a.last_login_at) : "—"}</Td>
+                    <Td style={{ textAlign: "right" }}>
                       <Button
                         variant="danger"
                         onClick={() => disableAgent(a.id)}
                         disabled={busy || !a.is_active}
                         type="button"
+                        style={{ padding: "10px 12px" }}
                       >
                         Disable
                       </Button>
@@ -306,7 +303,7 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
   );
 }
 
-function safeDate(v: string) {
+function fmt(v: string) {
   try {
     return new Date(v).toLocaleString();
   } catch {
@@ -314,56 +311,55 @@ function safeDate(v: string) {
   }
 }
 
+const formGrid: React.CSSProperties = {
+  display: "grid",
+  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+  alignItems: "start",
+};
+
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
-    background: GOV_THEME.bg,
+    background: GOV_THEME.pageBg,
     color: GOV_THEME.text,
-    fontFamily:
-      'system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif',
+    fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif",
   },
   header: {
-    background: "#ffffff",
-    borderBottom: `1px solid ${GOV_THEME.lineSoft}`,
+    position: "sticky",
+    top: 0,
+    zIndex: 50,
+    background: GOV_THEME.headerBg,
+    borderBottom: `1px solid ${GOV_THEME.border}`,
   },
   headerInner: {
-    maxWidth: 1040,
+    maxWidth: 1080,
     margin: "0 auto",
     padding: "14px 18px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 16,
-    flexWrap: "wrap",
+    gap: 12,
   },
-  headerLeft: { display: "grid", gap: 4 },
-  brandLine: { display: "flex", alignItems: "center", gap: 10 },
-  brand: { fontWeight: 900, letterSpacing: 0.2 },
-  subtitle: { fontSize: 13, color: GOV_THEME.muted },
-  headerRight: { display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" },
+  brandLeft: { display: "flex", alignItems: "center", gap: 12 },
+  logo: { width: 34, height: 34, objectFit: "contain" },
+  brand: { fontWeight: 900, letterSpacing: 0.2, lineHeight: 1.1 },
+  sub: { fontSize: 12, color: GOV_THEME.muted, lineHeight: 1.1 },
+  headerRight: { display: "flex", alignItems: "center", gap: 12 },
   meta: { textAlign: "right" },
-  metaLabel: { fontSize: 12, color: GOV_THEME.muted },
-  metaValue: { fontSize: 14, fontWeight: 800 },
-  main: { padding: "12px 0 18px 0" },
-  footer: {
-    background: "#ffffff",
-    borderTop: `1px solid ${GOV_THEME.lineSoft}`,
-  },
+  metaLabel: { fontSize: 11, color: GOV_THEME.faint },
+  metaValue: { fontSize: 13, fontWeight: 800, color: GOV_THEME.text },
+  main: { padding: "18px 0 28px 0" },
+  footer: { borderTop: `1px solid ${GOV_THEME.border}`, background: "#fff" },
   footerInner: {
-    maxWidth: 1040,
+    maxWidth: 1080,
     margin: "0 auto",
-    padding: "14px 18px",
+    padding: "16px 18px",
     display: "flex",
     justifyContent: "space-between",
-    gap: 16,
+    gap: 12,
     flexWrap: "wrap",
-    fontSize: 13,
     color: GOV_THEME.muted,
+    fontSize: 12,
   },
-};
-
-const formGrid: React.CSSProperties = {
-  display: "grid",
-  gap: 12,
-  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
 };
