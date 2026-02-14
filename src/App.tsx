@@ -3,6 +3,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { SearchPage } from "./pages/SearchPage";
 import { getSession, setSession, clearSession, type AppSession } from "./lib/session";
 import { agencyAgentsList, agencyAgentCreate, agencyAgentDisable } from "./lib/api";
+import { Container } from "./components/UI";
 
 export default function App() {
   const [session, setSessionState] = useState<AppSession | null>(() => getSession());
@@ -26,47 +27,64 @@ export default function App() {
     setSessionState(null);
   }
 
+  const signedInLabel =
+    session?.kind === "agency" ? session.agencyName : session?.kind === "agent" ? session.officeName : "";
+
   return (
     <div style={styles.page}>
+      {/* Header */}
       <header style={styles.header}>
-        <div>
-          <div style={styles.brand}>JobAppID</div>
-          <div style={styles.title}>Verification Portal</div>
-        </div>
-
-        {session ? (
-          <div style={styles.headerRight}>
-            <div style={styles.meta}>
-              <div style={styles.metaLabel}>Signed in as</div>
-              <div style={styles.metaValue}>
-                {session.kind === "agency" ? session.agencyName : session.officeName}
-              </div>
+        <div style={styles.headerInner}>
+          <div style={styles.headerLeft}>
+            <div style={styles.brandRow}>
+              <div style={styles.brand}>JobAppID</div>
+              <div style={styles.badge}>Verification</div>
             </div>
-            <button onClick={onLogout} style={styles.linkButton}>
-              Sign out
-            </button>
+            <div style={styles.title}>Verification Portal</div>
           </div>
-        ) : (
-          <div style={styles.meta}>
-            <div style={styles.metaLabel}>Read-only</div>
-            <div style={styles.metaValue}>Audit logged</div>
-          </div>
-        )}
+
+          {session ? (
+            <div style={styles.headerRight}>
+              <div style={styles.meta}>
+                <div style={styles.metaLabel}>Signed in as</div>
+                <div style={styles.metaValue}>{signedInLabel}</div>
+              </div>
+
+              <button onClick={onLogout} style={styles.linkButton} type="button">
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <div style={styles.meta}>
+              <div style={styles.metaLabel}>Read-only</div>
+              <div style={styles.metaValue}>Audit logged</div>
+            </div>
+          )}
+        </div>
       </header>
 
+      {/* Main */}
       <main style={styles.main}>
-        {view === "login" ? (
-          <LoginPage onLogin={onLogin} />
-        ) : view === "search" ? (
-          <SearchPage session={session as any} />
-        ) : (
-          <AgencyDashboard agencyName={(session as any).agencyName} agencyToken={(session as any).agencyToken} />
-        )}
+        <Container>
+          {view === "login" ? (
+            <LoginPage onLogin={onLogin} />
+          ) : view === "search" ? (
+            <SearchPage session={session as any} />
+          ) : (
+            <AgencyDashboard
+              agencyName={(session as any).agencyName}
+              agencyToken={(session as any).agencyToken}
+            />
+          )}
+        </Container>
       </main>
 
+      {/* Footer */}
       <footer style={styles.footer}>
-        <div>© {new Date().getFullYear()} JobAppID</div>
-        <div style={{ opacity: 0.75 }}>For authorized verification only</div>
+        <div style={styles.footerInner}>
+          <div>© {new Date().getFullYear()} JobAppID</div>
+          <div style={{ opacity: 0.75 }}>For authorized verification only</div>
+        </div>
       </footer>
     </div>
   );
@@ -81,12 +99,8 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
   >([]);
 
   const [newUsername, setNewUsername] = useState("");
-
-  // ✅ restore old behavior: username + (manual password OR auto-generated)
   const [passwordMode, setPasswordMode] = useState<"manual" | "auto">("manual");
   const [manualPassword, setManualPassword] = useState("");
-
-  // Only used when API returns an auto-generated password (shown once)
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
 
   async function loadAgents() {
@@ -215,17 +229,15 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
               autoComplete="new-password"
             />
           ) : (
-            <div style={card.helperText}>
-              A password will be generated and shown one time after creation.
-            </div>
+            <div style={card.helperText}>A password will be generated and shown one time after creation.</div>
           )}
 
           <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr auto" }}>
-            <button style={card.secondaryBtn} onClick={loadAgents} disabled={busy}>
+            <button style={card.secondaryBtn} onClick={loadAgents} disabled={busy} type="button">
               {busy ? "Loading…" : "Refresh list"}
             </button>
 
-            <button style={card.primaryBtn} onClick={createAgent} disabled={busy}>
+            <button style={card.primaryBtn} onClick={createAgent} disabled={busy} type="button">
               {busy ? "Working…" : "Create agent"}
             </button>
           </div>
@@ -264,16 +276,15 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
                     {a.last_login_at ? ` • last login: ${new Date(a.last_login_at).toLocaleString()}` : ""}
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    style={card.dangerBtn}
-                    onClick={() => disableAgent(a.id)}
-                    disabled={busy || !a.is_active}
-                    title={!a.is_active ? "Already disabled" : "Disable agent"}
-                  >
-                    Disable
-                  </button>
-                </div>
+                <button
+                  style={card.dangerBtn}
+                  onClick={() => disableAgent(a.id)}
+                  disabled={busy || !a.is_active}
+                  title={!a.is_active ? "Already disabled" : "Disable agent"}
+                  type="button"
+                >
+                  Disable
+                </button>
               </div>
             ))
           )}
@@ -291,35 +302,63 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif",
   },
   header: {
+    position: "sticky",
+    top: 0,
+    zIndex: 20,
+    backdropFilter: "blur(10px)",
+    background: "rgba(11,11,15,0.65)",
+    borderBottom: "1px solid rgba(255,255,255,0.10)",
+  },
+  headerInner: {
+    maxWidth: 980,
+    margin: "0 auto",
+    padding: "16px 22px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: "18px 22px",
-    borderBottom: "1px solid rgba(255,255,255,0.10)",
+    gap: 16,
   },
-  brand: { fontWeight: 700, letterSpacing: 0.5 },
-  title: { fontSize: 14, opacity: 0.85, marginTop: 2 },
+  headerLeft: { display: "grid", gap: 4 },
+  brandRow: { display: "flex", alignItems: "center", gap: 10 },
+  brand: { fontWeight: 900, letterSpacing: 0.5 },
+  badge: {
+    fontSize: 11,
+    fontWeight: 900,
+    padding: "4px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.16)",
+    background: "rgba(255,255,255,0.06)",
+    opacity: 0.92,
+  },
+  title: { fontSize: 13, opacity: 0.85 },
   headerRight: { display: "flex", alignItems: "center", gap: 14 },
   meta: { textAlign: "right" },
   metaLabel: { fontSize: 12, opacity: 0.7 },
-  metaValue: { fontSize: 14, fontWeight: 600 },
+  metaValue: { fontSize: 14, fontWeight: 700 },
   linkButton: {
     background: "transparent",
     color: "#fff",
     border: "1px solid rgba(255,255,255,0.18)",
     padding: "8px 10px",
-    borderRadius: 10,
+    borderRadius: 12,
     cursor: "pointer",
+    fontWeight: 800,
   },
-  main: { maxWidth: 980, margin: "0 auto", padding: "22px" },
+  main: {
+    padding: "22px 0 30px 0",
+  },
   footer: {
+    borderTop: "1px solid rgba(255,255,255,0.08)",
+    opacity: 0.75,
+  },
+  footerInner: {
     maxWidth: 980,
     margin: "0 auto",
-    padding: "20px 22px",
+    padding: "18px 22px",
     display: "flex",
     justifyContent: "space-between",
-    borderTop: "1px solid rgba(255,255,255,0.08)",
-    opacity: 0.7,
+    gap: 16,
+    flexWrap: "wrap",
   },
 };
 
@@ -340,17 +379,8 @@ const card: Record<string, React.CSSProperties> = {
     color: "#fff",
     outline: "none",
   },
-  helperText: {
-    marginTop: -2,
-    fontSize: 12,
-    opacity: 0.8,
-    lineHeight: 1.35,
-  },
-  modeRow: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-  },
+  helperText: { fontSize: 12, opacity: 0.8, lineHeight: 1.35 },
+  modeRow: { display: "flex", gap: 10, flexWrap: "wrap" },
   modeBtn: {
     padding: "10px 12px",
     borderRadius: 12,
@@ -360,11 +390,7 @@ const card: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     cursor: "pointer",
   },
-  modeBtnActive: {
-    background: "#fff",
-    color: "#111",
-    border: "1px solid rgba(255,255,255,0.14)",
-  },
+  modeBtnActive: { background: "#fff", color: "#111" },
   primaryBtn: {
     padding: "12px 14px",
     borderRadius: 12,
