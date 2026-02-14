@@ -81,6 +81,12 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
   >([]);
 
   const [newUsername, setNewUsername] = useState("");
+
+  // ✅ restore old behavior: username + (manual password OR auto-generated)
+  const [passwordMode, setPasswordMode] = useState<"manual" | "auto">("manual");
+  const [manualPassword, setManualPassword] = useState("");
+
+  // Only used when API returns an auto-generated password (shown once)
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
 
   async function loadAgents() {
@@ -104,13 +110,28 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
     const username = newUsername.trim();
     if (username.length < 3) return setMsg("Username must be at least 3 characters.");
 
+    if (passwordMode === "manual") {
+      if (manualPassword.trim().length < 6) return setMsg("Password must be at least 6 characters.");
+    }
+
     setBusy(true);
     try {
-      const r = await agencyAgentCreate(props.agencyToken, { username, generate_password: true });
-      setCreatedPassword(r.password);
+      if (passwordMode === "auto") {
+        const r = await agencyAgentCreate(props.agencyToken, { username, generate_password: true });
+        setCreatedPassword(r.password);
+        setMsg("Agent created. Copy the password now — it will not be shown again.");
+      } else {
+        await agencyAgentCreate(props.agencyToken, {
+          username,
+          generate_password: false,
+          password: manualPassword,
+        });
+        setMsg("Agent created with your password.");
+      }
+
       setNewUsername("");
+      setManualPassword("");
       await loadAgents();
-      setMsg("Agent created. Copy the password now — it will not be shown again.");
     } catch (e: any) {
       setMsg(e?.message || String(e));
     } finally {
@@ -146,7 +167,7 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
           Signed in as <b>{props.agencyName}</b>. Create agents and manage access.
         </div>
 
-        <div style={{ marginTop: 14, display: "grid", gap: 10, gridTemplateColumns: "1fr auto" }}>
+        <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
           <input
             style={card.input}
             value={newUsername}
@@ -154,25 +175,76 @@ function AgencyDashboard(props: { agencyName: string; agencyToken: string }) {
             placeholder="New agent username (e.g. agent01)"
             autoComplete="off"
           />
-          <button style={card.primaryBtn} onClick={createAgent} disabled={busy}>
-            {busy ? "Working…" : "Create agent"}
-          </button>
+
+          <div style={card.modeRow}>
+            <button
+              type="button"
+              onClick={() => {
+                setPasswordMode("manual");
+                setCreatedPassword(null);
+                setMsg("");
+              }}
+              style={{ ...card.modeBtn, ...(passwordMode === "manual" ? card.modeBtnActive : {}) }}
+              disabled={busy}
+            >
+              Set password
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setPasswordMode("auto");
+                setManualPassword("");
+                setCreatedPassword(null);
+                setMsg("");
+              }}
+              style={{ ...card.modeBtn, ...(passwordMode === "auto" ? card.modeBtnActive : {}) }}
+              disabled={busy}
+            >
+              Auto-generate password
+            </button>
+          </div>
+
+          {passwordMode === "manual" ? (
+            <input
+              style={card.input}
+              value={manualPassword}
+              onChange={(e) => setManualPassword(e.target.value)}
+              placeholder="Agent password (min 6)"
+              type="password"
+              autoComplete="new-password"
+            />
+          ) : (
+            <div style={card.helperText}>
+              A password will be generated and shown one time after creation.
+            </div>
+          )}
+
+          <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr auto" }}>
+            <button style={card.secondaryBtn} onClick={loadAgents} disabled={busy}>
+              {busy ? "Loading…" : "Refresh list"}
+            </button>
+
+            <button style={card.primaryBtn} onClick={createAgent} disabled={busy}>
+              {busy ? "Working…" : "Create agent"}
+            </button>
+          </div>
         </div>
 
         {createdPassword ? (
           <div style={card.notice}>
             <div style={{ fontWeight: 900 }}>Agent password (shown once):</div>
-            <div style={{ marginTop: 6, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}>
+            <div
+              style={{
+                marginTop: 6,
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                wordBreak: "break-all",
+              }}
+            >
               {createdPassword}
             </div>
           </div>
         ) : null}
-
-        <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button style={card.secondaryBtn} onClick={loadAgents} disabled={busy}>
-            {busy ? "Loading…" : "Refresh list"}
-          </button>
-        </div>
 
         {msg ? <div style={card.msg}>{msg}</div> : null}
       </div>
@@ -267,6 +339,31 @@ const card: Record<string, React.CSSProperties> = {
     background: "rgba(0,0,0,0.35)",
     color: "#fff",
     outline: "none",
+  },
+  helperText: {
+    marginTop: -2,
+    fontSize: 12,
+    opacity: 0.8,
+    lineHeight: 1.35,
+  },
+  modeRow: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  modeBtn: {
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.18)",
+    background: "rgba(0,0,0,0.20)",
+    color: "#fff",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  modeBtnActive: {
+    background: "#fff",
+    color: "#111",
+    border: "1px solid rgba(255,255,255,0.14)",
   },
   primaryBtn: {
     padding: "12px 14px",
