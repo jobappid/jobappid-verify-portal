@@ -339,7 +339,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
   },
   brandLeft: { display: "flex", alignItems: "center", gap: 12 },
   logo: { width: 134, height: 102, objectFit: "contain" },
