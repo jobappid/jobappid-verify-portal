@@ -342,7 +342,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12,
   },
   brandLeft: { display: "flex", alignItems: "center", gap: 12 },
-  logo: { width: 34, height: 34, objectFit: "contain" },
+  logo: { width: 54, height: 72, objectFit: "contain" },
   brand: { fontWeight: 900, letterSpacing: 0.2, lineHeight: 1.1 },
   sub: { fontSize: 12, color: GOV_THEME.muted, lineHeight: 1.1 },
   headerRight: { display: "flex", alignItems: "center", gap: 12 },
